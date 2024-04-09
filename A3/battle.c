@@ -49,11 +49,33 @@ size_t iset_length(int* iset) { // returns the length of the iset
     return iset_header(iset)->length;
 }
 
-size_t iset_length(int* iset) { // returns the capacity of the iset
+size_t iset_capacity(int* iset) { // returns the capacity of the iset
     return iset_header(iset)->capacity;
 }
 
-int _iset_index(int* iset, int val) { // returns the index of a value in an iset, returns -1 if not present. this is a helper for iset_remove()
+void _iset_change_length(int* iset, int add) { // changes the length of the iset by adding the add value. helper for iset_remove() and iset_add()
+    int len = (int) iset_header(iset)->length;
+    len += add;
+    if (len < 0) {
+        fprintf(stderr, "_iset_change_length: attempting to turn iset length into a negative value");
+        exit(1);
+    }
+
+    iset_header(iset)->length = (size_t) len;
+}
+
+void _iset_change_capacity(int* iset, int add) { // changes the capacity of the iset by adding the add value. helper for iset_remove() and iset_add()
+    int cap = (int) iset_header(iset)->capacity;
+    cap += add;
+    if (cap < 0) {
+        fprintf(stderr, "_iset_change_capacity: attempting to turn iset capacity into a negative value");
+        exit(1);
+    }
+
+    iset_header(iset)->capacity = (size_t) cap;
+}
+
+int _iset_index_of(int* iset, int val) { // returns the index of a value in an iset, returns -1 if not present. this is a helper for iset_remove()
     size_t len = iset_length(iset);
     int index = -1;
     for (int i = 0; i < len; i++) {
@@ -66,15 +88,42 @@ int _iset_index(int* iset, int val) { // returns the index of a value in an iset
 }
 
 void iset_remove(int* iset, int val) { // returns the value from the iset
-    int index = _iset_index(iset, val); 
 
+    if (val < 0) {
+        fprintf(stderr, "iset_remove: attempting to remove a negative integer from the iset\n");
+        exit(1);
+    }
+
+    size_t len = iset_length(iset);
+    if (len == 0) {
+        fprintf(stderr, "iset_remove: attempting to remove an integer from an empty iset\n");
+        exit(1);
+    }
+
+    int index = _iset_index_of(iset, val); 
+    if (index == -1) {
+        fprintf(stderr, "iset_remove: attempting to remove an integer not in the iset\n");
+        exit(1);
+    }
+
+    size_t cap = iset_capacity(iset);
+    int shrink = 0; // flag for whether we will shrink down the iset or not.
+    if ((len - 1) % cap == 0) { 
+        shrink = 1;
+    }
+
+    iset[index] = iset[len - 1]; // replace the value we are removing with the last item
+    iset[len - 1] = -1; // empty out the last item
 
 }
 
-void iset_addnew(int* iset) {
+void iset_addnew(int* iset, int val) {
     // important prerequisite: we are assuming that the value we seek to add is not already in the set
     // we make this assumption because it saves us time from checking, and the nature of this program is only expected to add unique integers in the first place.
-
+    if (val < 0) {
+        fprintf(stderr, "iset_addnew: attempting to add a negative integer to the iset\n");
+        exit(1);
+    }
     
 }
 
