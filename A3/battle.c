@@ -20,12 +20,12 @@ struct player {
     int element;
 };
 
-typedef struct {
+typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
     size_t capacity;
     size_t length;
-} Dynamic_Set_Header; // the meta data for a dynamic integer set.
+} Dynamic_Set_Header; // the meta data for a dynamic integer set. we will call an a dynamic integer set "iset" from now on.
 
-void* set_init() { // initialize a dynamic integer set
+int* iset_init() { // initialize an iset
     int* ptr = NULL;
     size_t size = sizeof(Dynamic_Set_Header) + INITIAL_SET_SIZE * sizeof(int);
     Dynamic_Set_Header* h = (Dynamic_Set_Header*) malloc(size);
@@ -33,12 +33,20 @@ void* set_init() { // initialize a dynamic integer set
     if (h) {
         h->capacity = INITIAL_SET_SIZE;
         h->length = 0;
-        ptr = (int*)(h + 1); // we skip over the meta data, and now point to the beginning of the integer array
+        ptr = (int*)(h + 1); // we skip over the meta data, and now point to the beginning of the iset
     }
 
-    return ptr;
+    return ptr; // return our iset. type of iset is int*
 }
 
+Dynamic_Set_Header* iset_header(int* iset) {
+    return (Dynamic_Set_Header*)(iset) - 1; // we move back "Dynamic_Set_Header" bits from the front of the set. this gives us the address of the header.
+}
+
+size_t iset_length() {
+
+    return;
+}
 
 void smart_select(fd_set* rd, fd_set* wr, fd_set* mrd, fd_set* mwr) {
     // call select()
