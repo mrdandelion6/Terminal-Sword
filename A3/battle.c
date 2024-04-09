@@ -10,7 +10,7 @@
 
 #define PORT 55976 
 #define MAXSIZE 4096
-#define INITIAL_SET_SIZE 10
+#define INITIAL_SET_SIZE 32
 
 char* elements[] = {"fire", "water", "wind", "blood"};
 char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
@@ -36,16 +36,46 @@ int* iset_init() { // initialize an iset
         ptr = (int*)(h + 1); // we skip over the meta data, and now point to the beginning of the iset
     }
 
+    memset(ptr, -1, INITIAL_SET_SIZE * sizeof(int)); // set all empty indices to -1
+
     return ptr; // return our iset. type of iset is int*
 }
 
-Dynamic_Set_Header* iset_header(int* iset) {
+Dynamic_Set_Header* iset_header(int* iset) { // returns the header for the iset
     return (Dynamic_Set_Header*)(iset) - 1; // we move back "Dynamic_Set_Header" bits from the front of the set. this gives us the address of the header.
 }
 
-size_t iset_length() {
+size_t iset_length(int* iset) { // returns the length of the iset
+    return iset_header(iset)->length;
+}
 
-    return;
+size_t iset_length(int* iset) { // returns the capacity of the iset
+    return iset_header(iset)->capacity;
+}
+
+int _iset_index(int* iset, int val) { // returns the index of a value in an iset, returns -1 if not present. this is a helper for iset_remove()
+    size_t len = iset_length(iset);
+    int index = -1;
+    for (int i = 0; i < len; i++) {
+        if (iset[i] == val) {
+            index = i;
+            break;
+        }
+    }
+    return index;    
+}
+
+void iset_remove(int* iset, int val) { // returns the value from the iset
+    int index = _iset_index(iset, val); 
+
+
+}
+
+void iset_addnew(int* iset) {
+    // important prerequisite: we are assuming that the value we seek to add is not already in the set
+    // we make this assumption because it saves us time from checking, and the nature of this program is only expected to add unique integers in the first place.
+
+    
 }
 
 void smart_select(fd_set* rd, fd_set* wr, fd_set* mrd, fd_set* mwr) {
