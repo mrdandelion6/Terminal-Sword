@@ -337,8 +337,8 @@ void player_init(int fd) {
     strcpy(player.element, "");
     players[fd] = &player;
  
-    strcpy(message, "choose your element (cosmetic only).\r\n");
-    write(fd, message, MAX_MESSAGE_SIZE);
+    // strcpy(message, "choose your element (cosmetic only).\r\n");
+    // write(fd, message, MAX_MESSAGE_SIZE);
 }
 
 void check_wait() {
@@ -346,24 +346,22 @@ void check_wait() {
     int fd2 = waiting_clients[1];
     Player* p1 = players[fd1];
     Player* p2 = players[fd2];
-    if (p1.last_foe != p2) { // change last_foe to foe
+    if (p1->last_foe != p2) { // change last_foe to foe
         // implement case and also change foe to a pointer to Player
     }
 }
 
 void handle_write(int fd) {
-    Player p = players[fd];
+    Player* p = players[fd];
     char message[MAX_MESSAGE_SIZE] = p->message;
     write(fd, message, MAX_MESSAGE_SIZE);
 
-    switch (message) {
-        
-        case "what is your name warrior\r\n":
-            break;
-            
-        default:
-            break;
-        
+    if (strcmp(message, "what is your name warrior\r\n") == 0) {
+        /* bababooey */
+    }
+
+    else if (1) {
+        /* bababooey */
     }
 }
 
