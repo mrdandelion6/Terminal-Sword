@@ -118,6 +118,35 @@ void iset_remove(int** iset_ptr, int val) { // removes the value from the iset
     }
 }
 
+int iset_deque(int** iset_ptr) { // remove the first element in the iset and shift all elemenets back
+    int* iset = *iset_ptr;
+    size_t len = iset_length(iset);
+    if (len == 0) {
+        fprintf(stderr, "iset_remove: attempting to remove an integer from an empty iset\n");
+        exit(1);
+    }
+
+    size_t cap = iset_capacity(iset);
+    int shrink = 0; // flag for whether we will shrink down the iset or not.
+    if ( (cap - (len - 1) >= 32) && len != 1) { 
+        shrink = 1;
+    }
+
+    int val = iset[0]; // get topmost value
+    for (int i = 0; i < len - 1; i++) {
+        iset[i] = iset[i + 1];
+    }
+
+    _iset_change_length(iset, -1);
+
+    if (shrink) { // we shrink down the iset if we need to
+        int diff = len - 1 - cap;
+        _iset_change_capacity(iset_ptr, diff);
+    }
+
+    return val;
+}
+
 void iset_addnew(int** iset_ptr, int val) { // adds the value to the iset
     // important prerequisite: we are assuming that the value we seek to add is not already in the set
     // we make this assumption because it saves us time from checking, and the nature of this program is only expected to add unique integers in the first place.
@@ -182,6 +211,8 @@ int main() {
 
     fd_set writefds;
     FD_ZERO(&writefds);
+
+    int* waitng_clients = iset_init();
 
     while (1) {
         if (select(max_fd + 1, &readfds, &writefds, NULL, NULL) != 1) {
