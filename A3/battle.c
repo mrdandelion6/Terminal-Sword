@@ -11,25 +11,30 @@
 #define PORT 55976 
 #define MAXSIZE 4096
 #define INITIAL_SET_SIZE 32
+#define MAX_MESSAGE_SIZE 200
 
 // prototypes
 int accept_client(int soc);
 void check_wait();
 void handle_read(int fd);
 void handle_write(int fd);
-void add_player(int fd);
+void player_init(int fd);
 
-typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
+typedef struct { // 24-byte alligned structure (size_t is 8 bytes)
     size_t capacity;
     size_t length;
+    size_t elem_size;
 } Dynamic_Set_Header; // the meta data for a dynamic integer set. we will call an a dynamic integer set "iset" from now on.
 
-int* iset_init() { // initialize an iset
+#define size_mac(T) sizeof(T)
+
+int* iset_init(const char* T) { // initialize an iset
     int* ptr = NULL;
-    size_t size = sizeof(Dynamic_Set_Header) + INITIAL_SET_SIZE * sizeof(int);
+    size_t size = sizeof(Dynamic_Set_Header) + INITIAL_SET_SIZE * size_mac(T);
     Dynamic_Set_Header* h = (Dynamic_Set_Header*) malloc(size);
 
     if (h) {
+        h->elem_size = size_mac(T);
         h->capacity = INITIAL_SET_SIZE;
         h->length = 0;
         ptr = (int*)(h + 1); // we skip over the meta data, and now point to the beginning of the iset
@@ -40,6 +45,10 @@ int* iset_init() { // initialize an iset
 
 Dynamic_Set_Header* iset_header(int* iset) { // returns the header for the iset
     return (Dynamic_Set_Header*)(iset) - 1; // we move back "Dynamic_Set_Header" bits from the front of the set. this gives us the address of the header.
+}
+
+size_t iset_size(int* iset) { // returns the size of element
+    return iset_header(iset)->elem_size;
 }
 
 size_t iset_length(int* iset) { // returns the length of the iset
@@ -69,7 +78,7 @@ void _iset_change_capacity(int** iset_ptr, int add) { // changes the capacity of
         exit(1);
     }
 
-    size_t size = cap * sizeof(int) + sizeof(Dynamic_Set_Header);
+    size_t size = cap * iset_size(*iset_ptr) + sizeof(Dynamic_Set_Header);
     int* iset = *iset_ptr;
     Dynamic_Set_Header* h = iset_header(iset); // first we get back the header
     h = (Dynamic_Set_Header*) realloc(h, size); // now we make more space
@@ -183,18 +192,21 @@ typedef struct player {
     char user[32];
     int element;
     int last_foe;
+    char message[MAX_MESSAGE_SIZE];
 } Player;
+
+
 
 int* clients;
 int* waiting_clients;
 int* cooldown_list;
-Player* players;
+Player** players;
 
 int main() {
 
-    clients = iset_init();
-    waiting_clients = iset_init();
-    cooldown_list = iset_init();
+    clients = iset_init("int");
+    waiting_clients = iset_init("int");
+    cooldown_list = iset_init("int");
 
     int soc = socket(AF_INET, SOCK_STREAM, 0);
     int yes = 1;
@@ -269,13 +281,28 @@ int accept_client(int soc) {
         perror("accept");
         exit(1);
     }
+
+    player_init(client_soc);
+
     iset_addnew(&waiting_clients, client_soc);
-    
     if (iset_length(waiting_clients) > 1) {
         check_wait();
     }
 
     return client_soc;
+}
+
+void player_init(int fd) {
+    // TODO
+    // if (fd > players.) {
+    //     /* bababooey */
+    // }
+
+    char message[50] = "what is your name warrior?\r\n";
+    write(fd, message, 50);
+
+    strcpy(message, "choose your element (cosmetic only).\r\n");
+    write(fd, message, 50);
 }
 
 void check_wait() {
@@ -290,8 +317,4 @@ void handle_write(int fd) {
 
 void handle_read(int fd) {
 
-}
-
-void add_player(int fd) {
-    
 }
