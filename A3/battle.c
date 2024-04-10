@@ -8,7 +8,8 @@
 #include <netinet/in.h>
 #include <sys/select.h>
 
-#define PORT 55976 
+// 55976
+#define PORT 46050  
 #define MAXSIZE 4096
 #define INITIAL_SET_SIZE 32
 #define MAX_MESSAGE_SIZE 200
