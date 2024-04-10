@@ -12,6 +12,13 @@
 #define MAXSIZE 4096
 #define INITIAL_SET_SIZE 32
 
+// prototypes
+int accept_client(int soc);
+void check_wait();
+void handle_read(int fd);
+void handle_write(int fd);
+void add_player(int fd);
+
 typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
     size_t capacity;
     size_t length;
@@ -172,14 +179,22 @@ char* elements[] = {"fire", "water", "wind", "blood"};
 char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
 char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
 
-struct player {
+typedef struct player {
+    char user[32];
     int element;
-};
+    int last_foe;
+} Player;
 
+int* clients;
+int* waiting_clients;
+int* cooldown_list;
+Player* players;
 
 int main() {
 
-    int* clients = iset_init();
+    clients = iset_init();
+    waiting_clients = iset_init();
+    cooldown_list = iset_init();
 
     int soc = socket(AF_INET, SOCK_STREAM, 0);
     int yes = 1;
@@ -212,8 +227,6 @@ int main() {
     fd_set writefds;
     FD_ZERO(&writefds);
 
-    int* waitng_clients = iset_init();
-
     while (1) {
         if (select(max_fd + 1, &readfds, &writefds, NULL, NULL) != 1) {
             perror("select");
@@ -229,10 +242,10 @@ int main() {
             int fd = clients[i];
             if (fd != soc) {
                 if (FD_ISSET(fd, &readfds)) {
-                    handle_read(fd); // TODO: MAKE
+                    handle_read(fd);
                 }
                 if (FD_ISSET(fd, &writefds)) {
-                    handle_write(fd); // TODO: MAKE
+                    handle_write(fd);
                 }
                 // now reset readfds and writefds to contain everything
                 FD_SET(fd, &readfds); // we add it to both as the same fd is used for both writes and reads
@@ -256,5 +269,29 @@ int accept_client(int soc) {
         perror("accept");
         exit(1);
     }
+    iset_addnew(&waiting_clients, client_soc);
+    
+    if (iset_length(waiting_clients) > 1) {
+        check_wait();
+    }
+
     return client_soc;
+}
+
+void check_wait() {
+    int fd1 = waiting_clients[0];
+    int fd2 = waiting_clients[1];
+}
+
+void handle_write(int fd) {
+
+
+}
+
+void handle_read(int fd) {
+
+}
+
+void add_player(int fd) {
+    
 }
