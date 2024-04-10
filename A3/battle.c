@@ -14,11 +14,18 @@
 #define MAX_MESSAGE_SIZE 200
 
 // prototypes
-int accept_client(int soc);
+void accept_client(int soc);
 void check_wait();
 void handle_read(int fd);
 void handle_write(int fd);
 void player_init(int fd);
+
+typedef struct player {
+    char user[32];
+    int element;
+    int last_foe;
+    char message[MAX_MESSAGE_SIZE];
+} Player;
 
 typedef struct { // 24-byte alligned structure (size_t is 8 bytes)
     size_t capacity;
@@ -47,19 +54,19 @@ Dynamic_Set_Header* iset_header(int* iset) { // returns the header for the iset
     return (Dynamic_Set_Header*)(iset) - 1; // we move back "Dynamic_Set_Header" bits from the front of the set. this gives us the address of the header.
 }
 
-size_t iset_size(int* iset) { // returns the size of element
+size_t iset_size(void* iset) { // returns the size of element
     return iset_header(iset)->elem_size;
 }
 
-size_t iset_length(int* iset) { // returns the length of the iset
+size_t iset_length(void* iset) { // returns the length of the iset
     return iset_header(iset)->length;
 }
 
-size_t iset_capacity(int* iset) { // returns the capacity of the iset
+size_t iset_capacity(void* iset) { // returns the capacity of the iset
     return iset_header(iset)->capacity;
 }
 
-void _iset_change_length(int* iset, int add) { // changes the length of the iset by adding the add value. helper for iset_remove() and iset_add()
+void _iset_change_length(void* iset, int add) { // changes the length of the iset by adding the add value. helper for iset_remove() and iset_add()
     int len = (int) iset_header(iset)->length;
     len += add;
     if (len < 0) {
@@ -70,7 +77,9 @@ void _iset_change_length(int* iset, int add) { // changes the length of the iset
     iset_header(iset)->length = (size_t) len;
 }
 
-void _iset_change_capacity(int** iset_ptr, int add) { // changes the capacity of the iset by adding the add value. helper for iset_remove() and iset_add()
+#define PLACE_PT(T, h) (T*)(h + 1)
+
+void _iset_change_capacity(void** iset_ptr, int add) { // changes the capacity of the iset by adding the add value. helper for iset_remove() and iset_add()
     int cap = (int) (iset_header(*iset_ptr)->capacity);
     cap += add;
     if (cap < 0) {
@@ -83,7 +92,12 @@ void _iset_change_capacity(int** iset_ptr, int add) { // changes the capacity of
     Dynamic_Set_Header* h = iset_header(iset); // first we get back the header
     h = (Dynamic_Set_Header*) realloc(h, size); // now we make more space
 
-    *iset_ptr = (int*)(h + 1); // and lastly we change the place iset points to
+    if (iset_size(*iset_ptr) == 1) {
+        *iset_ptr = (int*)(h + 1);
+    } else {
+        *iset_ptr = (Player**)(h + 1);
+    }
+     // and lastly we change the place iset points to
     iset_header(*iset_ptr)->capacity = (size_t) cap;
 }
 
@@ -100,7 +114,7 @@ int _iset_index_of(int* iset, int val) { // returns the index of a value in an i
 }
 
 void iset_remove(int** iset_ptr, int val) { // removes the value from the iset
-
+    // rmk: only to be called by a true integer set.
     if (val < 0) {
         fprintf(stderr, "iset_remove: attempting to remove a negative integer from the iset\n");
         exit(1);
@@ -132,6 +146,33 @@ void iset_remove(int** iset_ptr, int val) { // removes the value from the iset
         int diff = len - 1 - cap;
         _iset_change_capacity(iset_ptr, diff);
     }
+}
+
+void pset_remove(Player*** pset_ptr, int index) { // remove player at a given index
+    Player** pset = *pset_ptr;
+    size_t len = iset_length(pset);
+    if (len == 0) {
+        fprintf(stderr, "pset_remove: attempting to remove a player from an empty iset\n");
+        exit(1);
+    }
+
+    if (index < 0) {
+        fprintf(stderr, "pset_remove: attempting to access negative index.");
+        exit(1);
+    }
+
+    size_t cap = iset_capacity(pset);
+    int shrink = 0; // flag for whether we will shrink down the iset or not.
+    if ( (cap - (len - 1) >= 32) && len != 1) { 
+        shrink = 1;
+    }
+    pset[index] = pset[len - 1]; // replace the value we are removing with the last item
+    _iset_change_length(pset, -1);
+
+    if (shrink) { // we shrink down the iset if we need to
+        int diff = len - 1 - cap;
+        _iset_change_capacity(pset_ptr, diff);
+    }    
 }
 
 int iset_deque(int** iset_ptr) { // remove the first element in the iset and shift all elemenets back
@@ -188,15 +229,6 @@ char* elements[] = {"fire", "water", "wind", "blood"};
 char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
 char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
 
-typedef struct player {
-    char user[32];
-    int element;
-    int last_foe;
-    char message[MAX_MESSAGE_SIZE];
-} Player;
-
-
-
 int* clients;
 int* waiting_clients;
 int* cooldown_list;
@@ -207,6 +239,7 @@ int main() {
     clients = iset_init("int");
     waiting_clients = iset_init("int");
     cooldown_list = iset_init("int");
+    players = iset_init("Player*");
 
     int soc = socket(AF_INET, SOCK_STREAM, 0);
     int yes = 1;
@@ -246,8 +279,7 @@ int main() {
         }
         
         if (FD_ISSET(soc, &readfds)) {
-            int client_soc = accept_client(soc);
-            iset_addnew(&clients, client_soc);
+            accept_client(soc);
         }
 
         for (int i = 0; i < iset_length(clients); i++) {
@@ -271,7 +303,7 @@ int main() {
     return 0;
 }
 
-int accept_client(int soc) {
+void accept_client(int soc) {
     struct sockaddr_in client_addr;
     client_addr.sin_family = AF_INET;
     __u_int client_len = sizeof(struct sockaddr_in);
@@ -282,21 +314,20 @@ int accept_client(int soc) {
         exit(1);
     }
 
-    player_init(client_soc);
-
+    iset_addnew(&clients, client_soc);
     iset_addnew(&waiting_clients, client_soc);
+
     if (iset_length(waiting_clients) > 1) {
         check_wait();
     }
 
-    return client_soc;
+    player_init(client_soc);
 }
 
 void player_init(int fd) {
-    // TODO
-    // if (fd > players.) {
-    //     /* bababooey */
-    // }
+    if (fd > iset_length(players)) {
+        /* bababooey */
+    }
 
     char message[50] = "what is your name warrior?\r\n";
     write(fd, message, 50);
