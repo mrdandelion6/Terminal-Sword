@@ -12,13 +12,6 @@
 #define MAXSIZE 4096
 #define INITIAL_SET_SIZE 32
 
-char* elements[] = {"fire", "water", "wind", "blood"};
-char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
-char* spec_moves[] = {"Wolf-Rayet star WR 102", '15,750 psi!!', "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
-
-struct player {
-    int element;
-};
 
 typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
     size_t capacity;
@@ -63,16 +56,19 @@ void _iset_change_length(int* iset, int add) { // changes the length of the iset
 }
 
 void _iset_change_capacity(int** iset_ptr, int add) { // changes the capacity of the iset by adding the add value. helper for iset_remove() and iset_add()
-    int cap = (int) iset_header(*iset_ptr)->capacity;
+    int cap = (int) (iset_header(*iset_ptr)->capacity);
     cap += add;
     if (cap < 0) {
         fprintf(stderr, "_iset_change_capacity: attempting to turn iset capacity into a negative value");
         exit(1);
     }
 
-    size_t size = cap * sizeof(int);
-    *iset_ptr = (int*) realloc(*iset_ptr, size);
+    size_t size = cap * sizeof(int) + sizeof(Dynamic_Set_Header);
+    int* iset = *iset_ptr;
+    Dynamic_Set_Header* h = iset_header(iset); // first we get back the header
+    h = (Dynamic_Set_Header*) realloc(h, size); // now we make more space
 
+    *iset_ptr = (int*)(h + 1); // and lastly we change the place iset points to
     iset_header(*iset_ptr)->capacity = (size_t) cap;
 }
 
@@ -110,7 +106,7 @@ void iset_remove(int** iset_ptr, int val) { // removes the value from the iset
 
     size_t cap = iset_capacity(iset);
     int shrink = 0; // flag for whether we will shrink down the iset or not.
-    if ((len - 1) % cap == 0 && len != 1) { 
+    if ( (cap - (len - 1) >= 32) && len != 1) { 
         shrink = 1;
     }
 
@@ -137,12 +133,20 @@ void iset_addnew(int** iset_ptr, int val) { // adds the value to the iset
 
     _iset_change_length(iset, 1);
 
-    if (len + 1> cap) {
+    if (len + 1 > cap) {
         _iset_change_capacity(iset_ptr, 32); // allocate space for 32 more integers on the iset
     }
 
     iset[len] = val;
 }
+
+char* elements[] = {"fire", "water", "wind", "blood"};
+char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
+char* spec_moves[] = {"Wolf-Rayet star WR 102", '15,750 psi!!', "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
+
+struct player {
+    int element;
+};
 
 void smart_select(fd_set* rd, fd_set* wr, fd_set* mrd, fd_set* mwr) {
     // call select()
