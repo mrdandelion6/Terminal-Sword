@@ -321,33 +321,50 @@ void accept_client(int soc) {
     iset_addnew((void**) &clients, client_soc, NULL);
     iset_addnew((void**) &waiting_clients, client_soc, NULL);
 
+    player_init(client_soc);
+    
     if (iset_length(waiting_clients) > 1) {
         check_wait();
     }
-
-    player_init(client_soc);
 }
 
 void player_init(int fd) {
-    if (fd > iset_length(players)) {
-        /* bababooey */
+    if (fd >= iset_length(players)) {
+        _iset_change_capacity(&players, 32);
     }
-
-    char message[50] = "what is your name warrior?\r\n";
-    write(fd, message, 50);
-
+    Player player;
+    strcpy(player.message, "what is your name warrior\r\n");
+    strcpy(player.element, "");
+    players[fd] = &player;
+ 
     strcpy(message, "choose your element (cosmetic only).\r\n");
-    write(fd, message, 50);
+    write(fd, message, MAX_MESSAGE_SIZE);
 }
 
 void check_wait() {
     int fd1 = waiting_clients[0];
     int fd2 = waiting_clients[1];
+    Player* p1 = players[fd1];
+    Player* p2 = players[fd2];
+    if (p1.last_foe != p2) { // change last_foe to foe
+        // implement case and also change foe to a pointer to Player
+    }
 }
 
 void handle_write(int fd) {
+    Player p = players[fd];
+    char message[MAX_MESSAGE_SIZE] = p->message;
+    write(fd, message, MAX_MESSAGE_SIZE);
 
-
+    switch (message) {
+        
+        case "what is your name warrior\r\n":
+            break;
+            
+        default:
+            break;
+        
+    }
 }
 
 void handle_read(int fd) {
