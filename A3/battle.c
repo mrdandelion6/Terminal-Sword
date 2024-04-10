@@ -142,22 +142,23 @@ void iset_addnew(int** iset_ptr, int val) { // adds the value to the iset
 
 char* elements[] = {"fire", "water", "wind", "blood"};
 char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
-char* spec_moves[] = {"Wolf-Rayet star WR 102", '15,750 psi!!', "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
+char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
 
 struct player {
     int element;
 };
 
-void smart_select(fd_set* rd, fd_set* wr, fd_set* mrd, fd_set* mwr) {
-    // call select()
-
-    
-}
-
 
 int main() {
 
+    int* clients = iset_init();
+
     int soc = socket(AF_INET, SOCK_STREAM, 0);
+    int yes = 1;
+    if((setsockopt(soc, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int))) == -1) {
+        perror("setsockopt");
+    }
+
     struct sockaddr_in server_addr; 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
@@ -174,29 +175,40 @@ int main() {
         exit(1);
     }
 
-    struct sockaddr_in client_addr;
-    client_addr.sin_family = AF_INET;
-    __u_int client_len = sizeof(struct sockaddr_in);
 
     // use select() to avoid blocking with accept()
     fd_set readfds;
     FD_ZERO (&readfds);
+    FD_SET(soc, &readfds); // add the server socket into read_fds() which will listen for clients to connect
+
     fd_set writefds;
-    FD_ZERO (&writefds);
-    fd_set filtered_readfds;
-    FD_ZERO (&filtered_readfds);
-    fd_set filtered_writefds;
-    FD_ZERO (&filtered_writefds);
+    FD_ZERO(&writefds);
 
     while (1) {
-
+        if (select(1, &readfds, &writefds, NULL, NULL) != 1) {
+            perror("select");
+            exit(1);
+        }
         
-        int client_soc = accept(soc, (struct sockaddr*) &client_addr, &client_len);
+        if (FD_ISSET(soc, &readfds)) {
+            iset_addnew(&clients, accept_client(soc));
+        }
+
+
+    }
+
+    return 0;
+}
+
+int accept_client(int soc) {
+    struct sockaddr_in client_addr;
+    client_addr.sin_family = AF_INET;
+    __u_int client_len = sizeof(struct sockaddr_in);
+    
+    int client_soc = accept(soc, (struct sockaddr*) &client_addr, &client_len);
         if (client_soc == -1) {
             perror("accept");
             exit(1);
         }
-    }
-
-    return 0;
+    return client_soc;
 }
