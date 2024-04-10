@@ -8,3 +8,6 @@
 - managing the player state for a dynamic set of clients
 ### solution: 
 - use another dynamic set, but each element is of type struct player
+---
+### challenge:
+- reading and writing several stuff at once

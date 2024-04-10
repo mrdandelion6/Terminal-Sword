@@ -144,7 +144,7 @@ void iset_remove(int** iset_ptr, int val) { // removes the value from the iset
 
     if (shrink) { // we shrink down the iset if we need to
         int diff = len - 1 - cap;
-        _iset_change_capacity(iset_ptr, diff);
+        _iset_change_capacity( (void**)iset_ptr, diff);
     }
 }
 
@@ -171,7 +171,7 @@ void pset_remove(Player*** pset_ptr, int index) { // remove player at a given in
 
     if (shrink) { // we shrink down the iset if we need to
         int diff = len - 1 - cap;
-        _iset_change_capacity(pset_ptr, diff);
+        _iset_change_capacity( (void**) pset_ptr, diff);
     }    
 }
 
@@ -198,13 +198,13 @@ int iset_deque(int** iset_ptr) { // remove the first element in the iset and shi
 
     if (shrink) { // we shrink down the iset if we need to
         int diff = len - 1 - cap;
-        _iset_change_capacity(iset_ptr, diff);
+        _iset_change_capacity( (void**) iset_ptr, diff);
     }
 
     return val;
 }
 
-void iset_addnew(int** iset_ptr, int val) { // adds the value to the iset
+void iset_addnew(void** iset_ptr, int val, Player* player) { // adds the value to the iset
     // important prerequisite: we are assuming that the value we seek to add is not already in the set
     // we make this assumption because it saves us time from checking, and the nature of this program is only expected to add unique integers in the first place.
     if (val < 0) {
@@ -212,17 +212,21 @@ void iset_addnew(int** iset_ptr, int val) { // adds the value to the iset
         exit(1);
     }
 
-    int* iset = *iset_ptr;
-    size_t len = iset_length(iset);
-    size_t cap = iset_capacity(iset);
-
-    _iset_change_length(iset, 1);
+    size_t len = iset_length(*iset_ptr);
+    size_t cap = iset_capacity(*iset_ptr);
+    _iset_change_length(*iset_ptr, 1);
 
     if (len + 1 > cap) {
         _iset_change_capacity(iset_ptr, 32); // allocate space for 32 more integers on the iset
     }
 
-    iset[len] = val;
+    if (player == NULL) {
+        int* iset = *iset_ptr;
+        iset[len] = val;
+    } else {
+        Player** pset = *iset_ptr;
+        pset[len] = player;
+    }
 }
 
 char* elements[] = {"fire", "water", "wind", "blood"};
@@ -239,7 +243,7 @@ int main() {
     clients = iset_init("int");
     waiting_clients = iset_init("int");
     cooldown_list = iset_init("int");
-    players = iset_init("Player*");
+    players = (Player**) iset_init("Player*");
 
     int soc = socket(AF_INET, SOCK_STREAM, 0);
     int yes = 1;
@@ -314,8 +318,8 @@ void accept_client(int soc) {
         exit(1);
     }
 
-    iset_addnew(&clients, client_soc);
-    iset_addnew(&waiting_clients, client_soc);
+    iset_addnew((void**) &clients, client_soc, NULL);
+    iset_addnew((void**) &waiting_clients, client_soc, NULL);
 
     if (iset_length(waiting_clients) > 1) {
         check_wait();
