@@ -12,7 +12,6 @@
 #define MAXSIZE 4096
 #define INITIAL_SET_SIZE 32
 
-
 typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
     size_t capacity;
     size_t length;
@@ -175,28 +174,44 @@ int main() {
         exit(1);
     }
 
-
     // use select() to avoid blocking with accept()
     fd_set readfds;
     FD_ZERO (&readfds);
     FD_SET(soc, &readfds); // add the server socket into read_fds() which will listen for clients to connect
+    int max_fd = soc;
 
     fd_set writefds;
     FD_ZERO(&writefds);
 
     while (1) {
-        if (select(1, &readfds, &writefds, NULL, NULL) != 1) {
+        if (select(max_fd + 1, &readfds, &writefds, NULL, NULL) != 1) {
             perror("select");
             exit(1);
         }
         
         if (FD_ISSET(soc, &readfds)) {
-            iset_addnew(&clients, accept_client(soc));
+            int client_soc = accept_client(soc);
+            iset_addnew(&clients, client_soc);
         }
 
-
+        for (int i = 0; i < iset_length(clients); i++) {
+            int fd = clients[i];
+            if (fd != soc) {
+                if (FD_ISSET(fd, &readfds)) {
+                    handle_read(fd); // TODO: MAKE
+                }
+                if (FD_ISSET(fd, &writefds)) {
+                    handle_write(fd); // TODO: MAKE
+                }
+                // now reset readfds and writefds to contain everything
+                FD_SET(fd, &readfds); // we add it to both as the same fd is used for both writes and reads
+                FD_SET(fd, &writefds);
+            }
+            if (fd > max_fd) {
+                max_fd = fd;
+            }
+        }
     }
-
     return 0;
 }
 
@@ -206,9 +221,9 @@ int accept_client(int soc) {
     __u_int client_len = sizeof(struct sockaddr_in);
     
     int client_soc = accept(soc, (struct sockaddr*) &client_addr, &client_len);
-        if (client_soc == -1) {
-            perror("accept");
-            exit(1);
-        }
+    if (client_soc == -1) {
+        perror("accept");
+        exit(1);
+    }
     return client_soc;
 }
