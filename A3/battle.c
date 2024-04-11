@@ -16,6 +16,7 @@
 #define MAX_USER_LENGTH 50
 
 // prototypes
+void check_write(int fd, int return_val);
 int write_with_size(int fd, char* s);
 void accept_client(int soc);
 void check_wait();
@@ -345,7 +346,7 @@ void player_init(int fd) {
 
     players[fd] = &player;
     int write_check = write_with_size(fd, "What is your name young one?\r\n");
-    // TODO: implement checking  for writes return value
+    check_write(fd, write_check);
 }
 
 void check_wait() {
@@ -362,12 +363,12 @@ void handle_read(int fd) {
     Player* pl = players[fd];
     ssize_t bytes_read = read(fd, pl->buffer, MAX_USER_LENGTH);
     if (bytes_read == -1) {
-        perror("handle_read");
+        perror("read");
         exit(1); 
     } 
     
-    else if (bytes_read == 0) {
-        /* client left, kill_client(int fd) */
+    else if (bytes_read == 0) { // client is closed
+        kill_client(fd);
     }
 
     else { // process the buffer data
@@ -384,7 +385,7 @@ void handle_read(int fd) {
                 join_msg(fd, pl->user);
                 printf("%s joined\n", pl->user); // server side message for testing
                 int write_check = write_with_size(fd, "Choose your element (cosmetic only).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
-                // TODO: implemenet write check
+                check_write(fd, write_check);
             }
 
             else if (pl->element == -1) { // user stated their element
@@ -393,9 +394,11 @@ void handle_read(int fd) {
                     pl->element = elem - 1;
                     printf("%s chosen\n", elements[pl->element]); // server side message for testing
                     int write_check = write_with_size(fd, choose_msg[pl->element]);
+                    check_write(fd, write_check);
                 }
                 else {
                     int write_check = write_with_size(fd, "Not a valid element number!\r\n");
+                    check_write(fd, write_check);
                 }
             }
             strcpy(pl->buffer, "\0");
@@ -425,4 +428,17 @@ void join_msg(int fd, char* name) {
 
 int write_with_size(int fd, char* s) {
     return write(fd, s, strlen(s));
+}
+
+void check_write(int fd, int return_val) { // function to check the return values of write
+    // printf("socket %d returned %d\n", fd, return_val);
+    if (return_val < 0) { // error case
+        perror("write");
+        exit(1);
+    }
+
+    else if (return_val == 0) { // client closed socket
+        kill_client(fd);
+    }
+
 }
