@@ -16,10 +16,10 @@
 #define MAX_USER_LENGTH 50
 
 // prototypes
+int write_with_size(int fd, char* s);
 void accept_client(int soc);
 void check_wait();
 void handle_read(int fd);
-void handle_write(int fd);
 void player_init(int fd);
 void remove_newlines(char *str);
 void join_msg(int fd, char* name);
@@ -29,6 +29,7 @@ typedef struct player { // 16-bit aligned
     int element; // 32
     int foe; // 32
     char buffer[MAX_MESSAGE_LENGTH]; // 256
+    char msg[MAX_MESSAGE_LENGTH]; // 256
 } Player; 
 
 typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
@@ -234,8 +235,10 @@ void iset_addnew(void** iset_ptr, int val, Player* player) { // adds the value t
 }
 
 char* elements[] = {"fire", "water", "wind", "blood"};
+char* choose_msg[] = {"The air is getting colder around you...\n", "Try not to drown in your own power.. literally\n", "Let the wind be your guide\n", "Impending doom approaches...\n"};
 char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
 char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
+
 
 int* clients;
 int* waiting_clients;
@@ -338,8 +341,11 @@ void player_init(int fd) {
     Player player;
     player.element = -1;
     strcpy(player.user, "\0");
+    strcpy(player.msg, "\0");
+
     players[fd] = &player;
-    write(fd, "what is your name young one?\r\n", 31);
+    int write_check = write_with_size(fd, "What is your name young one?\r\n");
+    // TODO: implement checking  for writes return value
 }
 
 void check_wait() {
@@ -355,7 +361,6 @@ void check_wait() {
 void handle_read(int fd) {
     Player* pl = players[fd];
     ssize_t bytes_read = read(fd, pl->buffer, MAX_USER_LENGTH);
-    printf("%s\n", pl->buffer);
     if (bytes_read == -1) {
         perror("handle_read");
         exit(1); 
@@ -367,29 +372,36 @@ void handle_read(int fd) {
 
     else { // process the buffer data
         pl->buffer[bytes_read] = '\0';
+        strcat(pl->msg, pl->buffer);
+
         char* newline_ptr = strchr(pl->buffer, '\n');
 
         if (newline_ptr != NULL) { // user sent a message.
+            remove_newlines(pl->msg);
+
             if (strcmp(pl->user, "\0") == 0) { // user stated their name
-                strcpy(pl->user, pl->buffer);
+                strcpy(pl->user, pl->msg);
                 join_msg(fd, pl->user);
-                printf("%s joined\n", pl->user);
+                printf("%s joined\n", pl->user); // server side message for testing
+                int write_check = write_with_size(fd, "Choose your element (cosmetic only).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
+                // TODO: implemenet write check
             }
 
             else if (pl->element == -1) { // user stated their element
-                int elem = atoi(pl->buffer);
+                int elem = atoi(pl->msg);
                 if (1 <= elem && elem <= 4) { // valid elemnt
                     pl->element = elem - 1;
+                    printf("%s chosen\n", elements[pl->element]); // server side message for testing
+                    int write_check = write_with_size(fd, choose_msg[pl->element]);
                 }
-
                 else {
-                    write(fd, "not a valid element number\r\n", 29);
+                    int write_check = write_with_size(fd, "Not a valid element number!\r\n");
                 }
             }
+            strcpy(pl->buffer, "\0");
+            strcpy(pl->msg, "\0");
         }
     }
-
-
 }
 
 void remove_newlines(char *str) {
@@ -409,4 +421,8 @@ void join_msg(int fd, char* name) {
             write(fd, name, MAX_MESSAGE_LENGTH);
         }
     }
+}
+
+int write_with_size(int fd, char* s) {
+    return write(fd, s, strlen(s));
 }
