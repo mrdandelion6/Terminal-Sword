@@ -311,14 +311,16 @@ int main() {
             }
             // now reset readfds to contain everything
             FD_SET(fd, &readfds); 
-
-            if (iset_length(clients) > 0) {
-                max_fd = iset_max(clients);
-            }
-            else {
-                max_fd = soc;
-            }
         }
+
+        if (iset_length(clients) > 0) {
+            max_fd = iset_max(clients);
+        }
+        else {
+            max_fd = soc;
+        }
+
+        FD_SET(soc, &readfds);
     }
     return 0;
 }
@@ -463,4 +465,5 @@ void kill_client(int fd) {
     iset_remove( (char**) &clients, fd, -1 ); // remove client with value fd
     iset_remove( (char**) &players, -1, fd ); // remove the player at index fd
     FD_CLR(fd, &readfds);
+    close(fd); // close socket on serv side
 }
