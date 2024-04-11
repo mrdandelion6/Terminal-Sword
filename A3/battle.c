@@ -32,7 +32,7 @@ void special_move(int val, char* moves);
 void norm_attack(int fd1, int fd2);
 void power_attack(int fd1, int fd2);
 void taunt(int fd1, int fd2);
-void check_win(int fd1, int fd2);
+int check_win(int fd1, int fd2);
 
 typedef struct player { // 16-bit aligned
     char user[32]; // 32
@@ -603,7 +603,7 @@ void initiate_battle(int fd1, int fd2) {
     Player* p1 = players[fd1];
     Player* p2 = players[fd2];
     p1->foe = fd2;
-    p1->foe = fd1;
+    p2->foe = fd1;
     int first;
     int second;
     int write_val;
@@ -636,7 +636,7 @@ void initiate_battle(int fd1, int fd2) {
     check_write(first, write_val);
 
     special_move(p1->special_count, moves);
-    sprintf(message, "You have %d hp.\nYou have %s power moves moves. \r\n", p1->hp, moves);
+    sprintf(message, "You have %d hp.\nYou have %s MP. \r\n", p1->hp, moves);
     write_val = write_with_size(first, message);
     check_write(first, write_val);
 
@@ -658,7 +658,7 @@ void initiate_battle(int fd1, int fd2) {
     check_write(second, write_val);
 
     special_move(p2->special_count, moves);
-    sprintf(message, "You have %d hp.\nYou have %s power moves moves.\r\n", p2->hp, moves);
+    sprintf(message, "You have %d hp.\nYou have %s MP.\r\n", p2->hp, moves);
     write_val = write_with_size(second, message);
     check_write(second, write_val);
 
@@ -684,8 +684,59 @@ void special_move(int val, char* moves) {
 }
 
 void norm_attack(int fd1, int fd2) {
+    Player* p1 = players[fd1];
+    Player* p2 = players[fd2];
 
+    printf("player 1: %d, player 2: %d", fd1, fd2);
 
+    // write messages
+    char message[MAX_MESSAGE_LENGTH];
+    int write_check;
+
+    // write to fd1
+    sprintf(message, "\nYou: '%s'\r\n", reg_moves[p1->element]);
+    write_check = write_with_size(fd1, message);
+    check_write(fd1, write_check);
+    sprintf(message, "\nYou hit %s for %d damage!\r\n\n", p2->user, p1->normal_dmg);
+    write_check = write_with_size(fd1, message);
+    check_write(fd1, write_check);
+    
+
+    // write to fd2
+    sprintf(message, "%s: '%s'", p1->user, reg_moves[p1->element]);
+    write_check = write_with_size(fd2, message);
+    check_write(fd2, write_check);
+    sprintf(message, "\n\n%s hits you for %d damage!\r\r\n", p1->user, p1->normal_dmg);
+    write_check = write_with_size(fd2, message);
+    check_write(fd2, write_check);
+
+    p2->hp -= p1->normal_dmg;
+
+    p1->turn =  0;
+    int result = check_win(fd1, fd2);
+    if (result != 1) { // didnt win
+        char s_move[10];
+
+        special_move(p1->special_count, s_move);
+        sprintf(message, "Your HP: %d\nYour MP: %s\n\n%s's HP: %d\r\n", p1->hp, s_move, p2->user, p2->hp);
+        write_check = write_with_size(fd1, message);
+        check_write(fd1, write_check);
+
+        special_move(p2->special_count, s_move);
+        sprintf(message, "Your HP: %d\nYour MP: %s\n\n%s's HP: %d\r\n", p2->hp, s_move, p1->user, p1->hp);
+        write_check = write_with_size(fd2, message);
+        check_write(fd2, write_check);
+
+        p2->turn = 1;
+    } else {
+        sprintf(message, "You defeated %s!\r\n\n", p2->user);
+        write_check = write_with_size(fd1, message);
+        check_write(fd1, write_check);
+
+        sprintf(message, "You lost.\r\n\n");
+        write_check = write_with_size(fd2, message);
+        check_write(fd2, write_check);
+    }
 }
 void power_attack(int fd1, int fd2) {
 
@@ -695,7 +746,6 @@ void taunt(int fd1, int fd2) {
 
 
 }
-void check_win(int fd1, int fd2) {
-
-    
+int check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. one-way check, not bidirectional!
+    return players[fd2]->hp <= 0;
 }
