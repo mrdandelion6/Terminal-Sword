@@ -189,8 +189,7 @@ void iset_remove(char** iset_ptr, int val, int ind) { // removes the value from 
 
 }
 
-
-int iset_deque(int** iset_ptr) { // remove the first element in the iset and shift all elemenets back
+int ordered_remove(int** iset_ptr, int ind) { // only for integer sets!! not player set
     int* iset = *iset_ptr;
     size_t len = iset_length(iset);
     if (len == 0) {
@@ -204,8 +203,8 @@ int iset_deque(int** iset_ptr) { // remove the first element in the iset and shi
         shrink = 1;
     }
 
-    int val = iset[0]; // get topmost value
-    for (int i = 0; i < len - 1; i++) {
+    int val = iset[ind]; // get topmost value
+    for (int i = ind; i < len - 1; i++) {
         iset[i] = iset[i + 1];
     }
 
@@ -217,6 +216,10 @@ int iset_deque(int** iset_ptr) { // remove the first element in the iset and shi
     }
 
     return val;
+}
+
+int iset_deque(int** iset_ptr) { // remove the first element in the iset and shift all elemenets back
+    return ordered_remove(iset_ptr, 0);
 }
 
 void iset_addnew(void** iset_ptr, int val, Player* player, int ind) { // adds the value to the iset
@@ -337,15 +340,8 @@ void accept_client(int soc) {
     }
 
     printf("accepted a client on socket %d\n", client_soc);
-
     iset_addnew((void**) &clients, client_soc, NULL, -1);
-    iset_addnew((void**) &waiting_clients, client_soc, NULL, -1);
-
     player_init(client_soc);
-    
-    if (iset_length(waiting_clients) > 1) {
-        check_wait();
-    }
 }
 
 
@@ -410,6 +406,12 @@ void handle_read(int fd) {
                     printf("%s chosen\n", elements[pl->element]); // server side message for testing
                     int write_check = write_with_size(fd, choose_msg[pl->element]);
                     check_write(fd, write_check);
+                    write_check = write_with_size(fd, "Waiting for an oponent..\r\n");
+                    check_write(fd, write_check);
+                    iset_addnew((void**) &waiting_clients, fd, NULL, -1);
+                    if (iset_length(waiting_clients) >= 2) {
+                        check_wait();
+                    }
                 }
                 else {
                     int write_check = write_with_size(fd, "Not a valid element number!\r\n");
