@@ -45,7 +45,7 @@ typedef struct player { // 16-bit aligned
     int special_dmg;
     float special_chance;
     int special_count;
-    int turn;
+    int turn; // players have -1 turn if they arent in game, 0 if they are in game but not their turn, and 1 if they are in game and its their turn.
 } Player; 
 
 // IMPORTANT CONSTANTS
@@ -57,7 +57,6 @@ char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burt
 fd_set readfds;
 int* clients;
 int* waiting_clients;
-int* cooldown_list;
 Player** players;
 
 typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
@@ -66,15 +65,14 @@ typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
     size_t elem_size; // 64
 } Dynamic_Set_Header; // the meta data for a dynamic integer set. we will call an a dynamic integer set "iset" from now on.
 
-#define size_mac(T) sizeof(T)
 
-int* iset_init(const char* T) { // initialize an iset
+int* iset_init(size_t e_size) { // initialize an iset
     int* ptr = NULL;
-    size_t size = sizeof(Dynamic_Set_Header) + INITIAL_SET_SIZE * size_mac(T);
+    size_t size = sizeof(Dynamic_Set_Header) + INITIAL_SET_SIZE * e_size;
     Dynamic_Set_Header* h = (Dynamic_Set_Header*) malloc(size);
 
     if (h) {
-        h->elem_size = size_mac(T);
+        h->elem_size = e_size;
         h->capacity = INITIAL_SET_SIZE;
         h->length = 0;
         ptr = (int*)(h + 1); // we skip over the meta data, and now point to the beginning of the iset
@@ -183,17 +181,17 @@ void iset_remove(void** iset_ptr, int val, int ind) { // removes the value from 
 
     printf("size is %lu\n", size);
     if (size == sizeof(int)) { // for iset
-        printf("got here 1\n");
+
         ((int*) iset)[index] = ((int*) iset)[len -1]; // replace the value we are removing with the last item
-        printf("got here 2\n");
         _iset_change_length(iset, -1);
+        
         if ( (cap - (len - 1) >= 32) && len != 1) {  
             int diff = len - 1 - cap;
             _iset_change_capacity( (void**) iset_ptr, diff);
         }
     }
     
-
+    
     else { // for player set
         free( ( (Player**) iset )[index] ); // free the memory for player
         ( (Player**) iset )[index] = NULL;
@@ -287,10 +285,9 @@ void iset_addnew(void** iset_ptr, int val, Player* player, int ind) { // adds th
 
 int main() {
 
-    clients = iset_init("int");
-    waiting_clients = iset_init("int");
-    cooldown_list = iset_init("int");
-    players = (Player**) iset_init("Player*"); // cast to pset
+    clients = iset_init(sizeof(int));
+    waiting_clients = iset_init(sizeof(int));
+    players = (Player**) iset_init(sizeof(Player*)); // cast to pset
 
     int soc = socket(AF_INET, SOCK_STREAM, 0);
     int yes = 1;
@@ -385,7 +382,7 @@ void player_init(int fd) {
     strcpy(player->user, "\0");
     strcpy(player->msg, "\0");
     player->foe = -1;
-    player->turn = 0;
+    player->turn = -1;
 
     iset_addnew((void**) &players, -1, player, fd); // store the pointer to the dynamically allocated memory
 
@@ -410,7 +407,7 @@ void handle_read(int fd) {
         pl->buffer[bytes_read] = '\0';
         strcat(pl->msg, pl->buffer);
 
-        if (pl->turn) { // handle input immediately when its the player's turn
+        if (pl->turn == 1) { // handle input immediately when its the player's turn
             printf("yoo!!?!?!\n");
             if ( (strcmp(pl->buffer, "a")) == 0 ) {
                 norm_attack(fd, pl->foe);
@@ -507,9 +504,11 @@ void check_write(int fd, int return_val) { // function to check the return value
 }
 
 void auto_win(int fd) {
+    printf("player ran away\n");
     int write_check = write_with_size(fd, "Your opponent has forfeit. You win!\r\n");
     check_write(fd, write_check);
 
+    player_set_stats(fd);
     iset_addnew((void**) &waiting_clients, fd, NULL, -1); // add back to list of waiting clients.
 
     write_check = write_with_size(fd, "Waiting for an opponent..\r\n");
@@ -518,18 +517,20 @@ void auto_win(int fd) {
 
 void kill_client(int fd) {
     printf("killing client %d\n", fd);
-    int foe = players[fd]->foe;
+    Player* pl = players[fd];
+    int foe = pl->foe;
 
     iset_remove( (void**) &clients, fd, -1 ); // remove client with value fd
-    printf("YAA\n");
     iset_remove( (void**) &players, -1, fd ); // remove the player at index fd
-    int val = iset_ordered_remove(&waiting_clients, -1, fd);
-    if (val == -1) { // then fd was in the middle of a game!
+
+    printf("got here 1\n");
+    if (pl->turn >= 0) { // then fd was in the middle of a game!
         auto_win(foe);
     }
 
-    FD_CLR(fd, &readfds);
     close(fd); // close socket on serv side
+    FD_CLR(fd, &readfds);
+    printf("got here 2\n");
 }
 
 int not_foes(int fd1, int fd2) {
@@ -669,6 +670,7 @@ void initiate_battle(int fd1, int fd2) {
     sprintf(message, "Waiting for %s to strike...\n", p1->user);
     write_val = write_with_size(second, message);
     check_write(second, write_val);
+    p2->turn = 0;
     
 }
 
@@ -777,6 +779,9 @@ void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. o
         sprintf(message, "Waiting for new match...\n");
         write_check = write_with_size(fd2, message);
         check_write(fd2, write_check);
+
+        p1->turn = -1;
+        p2->turn = -1;
 
         player_set_stats(fd1);
         iset_addnew((void**) &waiting_clients, fd1, NULL, -1);
