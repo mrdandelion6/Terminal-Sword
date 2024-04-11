@@ -25,6 +25,7 @@ void handle_read(int fd);
 void player_init(int fd);
 void remove_newlines(char *str);
 void join_msg(int fd, char* name);
+void initiate_battle(int fd1, int fd2);
 
 typedef struct player { // 16-bit aligned
     char user[32]; // 32
@@ -369,21 +370,12 @@ void player_init(int fd) {
     player.element = -1;
     strcpy(player.user, "\0");
     strcpy(player.msg, "\0");
+    player.foe = -1;
 
     iset_addnew((void**) &players, -1, &player, fd);
 
     int write_check = write_with_size(fd, "What is your name young one?\r\n");
     check_write(fd, write_check);
-}
-
-void check_wait() {
-    int fd1 = waiting_clients[0];
-    int fd2 = waiting_clients[1];
-    Player* p1 = players[fd1];
-    Player* p2 = players[fd2];
-    if (p1->foe != fd2) { 
-        // bababooey
-    }
 }
 
 void handle_read(int fd) {
@@ -481,8 +473,26 @@ void kill_client(int fd) {
 
     iset_remove( (char**) &clients, fd, -1 ); // remove client with value fd
     iset_remove( (char**) &players, -1, fd ); // remove the player at index fd
-    iset_ordered_remove(&waiting_clients, -1, fd);
+    int val = iset_ordered_remove(&waiting_clients, -1, fd);
+    if (val == -1) { // then fd was in the middle of a game!
+        /* handle other player winning */
+    }
 
     FD_CLR(fd, &readfds);
     close(fd); // close socket on serv side
+}
+
+void check_wait() {
+    int fd1 = waiting_clients[0];
+    int fd2 = waiting_clients[1];
+    Player* p1 = players[fd1];
+    Player* p2 = players[fd2];
+    if (p1->foe != fd2 && p2->foe != fd1) {  // we check both in case we have duplicates on socket
+        initiate_battle(fd1, fd2);
+    }
+}
+
+void initiate_battle(int fd1, int fd2) {
+
+
 }
