@@ -40,6 +40,7 @@ char* choose_msg[] = {"The air is getting colder around you...\n", "Try not to d
 char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
 char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
 
+fd_set readfds;
 int* clients;
 int* waiting_clients;
 int* cooldown_list;
@@ -218,10 +219,10 @@ int iset_deque(int** iset_ptr) { // remove the first element in the iset and shi
     return val;
 }
 
-void iset_addnew(void** iset_ptr, int val, Player* player) { // adds the value to the iset
+void iset_addnew(void** iset_ptr, int val, Player* player, int ind) { // adds the value to the iset
     // important prerequisite: we are assuming that the value we seek to add is not already in the set
     // we make this assumption because it saves us time from checking, and the nature of this program is only expected to add unique integers in the first place.
-    if (val < 0) {
+    if (val < 0 && player == NULL) {
         fprintf(stderr, "iset_addnew: attempting to add a negative integer to the iset\n");
         exit(1);
     }
@@ -232,14 +233,22 @@ void iset_addnew(void** iset_ptr, int val, Player* player) { // adds the value t
 
     if (len + 1 > cap) {
         _iset_change_capacity(iset_ptr, 32); // allocate space for 32 more integers on the iset
+        cap += 32;
     }
 
     if (player == NULL) {
         int* iset = *iset_ptr;
         iset[len] = val;
     } else {
+
+        int maxfd = iset_max(clients);
+        while (maxfd > cap) {
+            _iset_change_capacity(iset_ptr, 32);
+            cap += 32;
+        }
+
         Player** pset = *iset_ptr;
-        pset[len] = player;
+        pset[ind] = player;
     }
 }
 
@@ -273,7 +282,6 @@ int main() {
     }
 
     // use select() to avoid blocking with accept()
-    fd_set readfds;
     FD_ZERO (&readfds);
     FD_SET(soc, &readfds); // add the server socket into read_fds() which will listen for clients to connect
     int max_fd = soc;
@@ -290,27 +298,32 @@ int main() {
             accept_client(soc);
         }
 
+        if (FD_ISSET(4, &readfds)) {
+            printf("4 is ready\n");
+        }
+
         for (int i = 0; i < iset_length(clients); i++) {
             int fd = clients[i];
 
             if (FD_ISSET(fd, &readfds)) {
-                // printf("reading from client\n");
+                printf("reading from client %d\n", fd);
                 handle_read(fd);
             }
             // now reset readfds to contain everything
             FD_SET(fd, &readfds); 
 
-            if (fd > max_fd) {
-                max_fd = fd;
+            if (iset_length(clients) > 0) {
+                max_fd = iset_max(clients);
             }
-            printf("%d\n", fd);
+            else {
+                max_fd = soc;
+            }
         }
     }
     return 0;
 }
 
 void accept_client(int soc) {
-    printf("accepted a client\n");
     struct sockaddr_in client_addr;
     client_addr.sin_family = AF_INET;
     __u_int client_len = sizeof(struct sockaddr_in);
@@ -321,8 +334,10 @@ void accept_client(int soc) {
         exit(1);
     }
 
-    iset_addnew((void**) &clients, client_soc, NULL);
-    iset_addnew((void**) &waiting_clients, client_soc, NULL);
+    printf("accepted a client on socket %d\n", client_soc);
+
+    iset_addnew((void**) &clients, client_soc, NULL, -1);
+    iset_addnew((void**) &waiting_clients, client_soc, NULL, -1);
 
     player_init(client_soc);
     
@@ -341,7 +356,8 @@ void player_init(int fd) {
     strcpy(player.user, "\0");
     strcpy(player.msg, "\0");
 
-    players[fd] = &player;
+    iset_addnew((void**) &players, -1, &player, fd);
+
     int write_check = write_with_size(fd, "What is your name young one?\r\n");
     check_write(fd, write_check);
 }
@@ -441,6 +457,10 @@ void check_write(int fd, int return_val) { // function to check the return value
 }
 
 void kill_client(int fd) {
+    printf("killing client %d\n", fd);
+
     Player* pl = players[fd];
-    iset_remove( (char**) &players, -1, fd);  // remove the player at index fd
+    iset_remove( (char**) &clients, fd, -1 ); // remove client with value fd
+    iset_remove( (char**) &players, -1, fd ); // remove the player at index fd
+    FD_CLR(fd, &readfds);
 }
