@@ -34,6 +34,17 @@ typedef struct player { // 16-bit aligned
     char msg[MAX_MESSAGE_LENGTH]; // 256
 } Player; 
 
+// IMPORTANT CONSTANTS
+char* elements[] = {"fire", "water", "wind", "blood"};
+char* choose_msg[] = {"The air is getting colder around you...\n", "Try not to drown in your own power.. literally\n", "Let the wind be your guide\n", "Impending doom approaches...\n"};
+char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
+char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
+
+int* clients;
+int* waiting_clients;
+int* cooldown_list;
+Player** players;
+
 typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
     size_t capacity; // 64
     size_t length; // 64
@@ -71,6 +82,16 @@ size_t iset_length(void* iset) { // returns the length of the iset
 
 size_t iset_capacity(void* iset) { // returns the capacity of the iset
     return iset_header(iset)->capacity;
+}
+
+int iset_max(int* iset) { // return maximum file descriptor in the iset. used for clients only
+    int maxfd = 0;
+    for (int i = 0; i < iset_length(iset); i++) {
+        if (iset[i] > maxfd) {
+            maxfd = iset[i];
+        }
+    }
+    return maxfd;
 }
 
 void _iset_change_length(void* iset, int add) { // changes the length of the iset by adding the add value. helper for iset_remove() and iset_add()
@@ -142,18 +163,29 @@ void iset_remove(char** iset_ptr, int val, int ind) { // removes the value from 
     }
 
     size_t cap = iset_capacity(iset);
-    int shrink = 0; // flag for whether we will shrink down the iset or not.
-    if ( (cap - (len - 1) >= 32) && len != 1) { 
-        shrink = 1;
+    size_t size = iset_size(iset);
+
+    if (size == sizeof(int)) { // for iset
+        iset[index * size] = iset[(len - 1) * size]; // replace the value we are removing with the last item
+        _iset_change_length(iset, -1);
+
+        if ( (cap - (len - 1) >= 32) && len != 1) {  
+            int diff = len - 1 - cap;
+            _iset_change_capacity( (void**) iset_ptr, diff);
+        }
+
     }
 
-    iset[index * iset_size(iset)] = iset[(len - 1) * iset_size(iset)]; // replace the value we are removing with the last item
-    _iset_change_length(iset, -1);
-
-    if (shrink) { // we shrink down the iset if we need to
-        int diff = len - 1 - cap;
-        _iset_change_capacity( (void**)iset_ptr, diff);
+    else { // for player set
+        ( (Player**) iset)[index] = NULL;
+        _iset_change_length(iset, -1);
+        int maxfd = iset_max(clients);
+        if ( (cap - maxfd >= 32) && maxfd != 0) {
+            int diff = maxfd - cap;
+            _iset_change_capacity( (void**) iset_ptr, diff);
+        }
     }
+
 }
 
 
@@ -210,18 +242,6 @@ void iset_addnew(void** iset_ptr, int val, Player* player) { // adds the value t
         pset[len] = player;
     }
 }
-
-char* elements[] = {"fire", "water", "wind", "blood"};
-char* choose_msg[] = {"The air is getting colder around you...\n", "Try not to drown in your own power.. literally\n", "Let the wind be your guide\n", "Impending doom approaches...\n"};
-char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
-char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
-
-
-int* clients;
-int* waiting_clients;
-int* cooldown_list;
-Player** players;
-// players[i] corresponds to the player pointer for a client with fd value i
 
 int main() {
 
@@ -422,4 +442,5 @@ void check_write(int fd, int return_val) { // function to check the return value
 
 void kill_client(int fd) {
     Player* pl = players[fd];
+    iset_remove( (char**) &players, -1, fd);  // remove the player at index fd
 }
