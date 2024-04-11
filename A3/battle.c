@@ -318,6 +318,7 @@ int main() {
 
     while (1) {
         printf("pending select\n");
+        
         if (select(max_fd + 1, &readfds, NULL, NULL, NULL) != 1) {
             perror("select");
             exit(1);
@@ -330,13 +331,13 @@ int main() {
 
         for (int i = 0; i < iset_length(clients); i++) {
             int fd = clients[i];
+            // now reset readfds to contain everything
+            FD_SET(fd, &readfds); 
 
             if (FD_ISSET(fd, &readfds)) {
                 printf("reading from client %d\n", fd);
                 handle_read(fd);
             }
-            // now reset readfds to contain everything
-            FD_SET(fd, &readfds); 
         }
 
         if (iset_length(clients) > 0) {
