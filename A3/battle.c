@@ -189,7 +189,7 @@ void iset_remove(char** iset_ptr, int val, int ind) { // removes the value from 
 
 }
 
-int ordered_remove(int** iset_ptr, int ind) { // only for integer sets!! not player set
+int iset_ordered_remove(int** iset_ptr, int ind, int val) { // only for integer sets!! not player set
     int* iset = *iset_ptr;
     size_t len = iset_length(iset);
     if (len == 0) {
@@ -203,23 +203,39 @@ int ordered_remove(int** iset_ptr, int ind) { // only for integer sets!! not pla
         shrink = 1;
     }
 
-    int val = iset[ind]; // get topmost value
-    for (int i = ind; i < len - 1; i++) {
-        iset[i] = iset[i + 1];
+    int index;
+    int value;
+    if (ind != - 1) { // use index if provided
+        index = ind;
+        value = iset[ind];
+    }
+    else { // else use value
+        value = val;
+        index = _iset_index_of(iset, val);
+    }
+    
+    if (index == -1) {
+        value = -1; // value not popped
+        printf("client %d was not waiting\n", val);
     }
 
-    _iset_change_length(iset, -1);
+    else { // shift list back, client was waiting so we pop it
+        for (int i = index; i < len - 1; i++) {
+            iset[i] = iset[i + 1];
+        }
+        _iset_change_length(iset, -1);
 
-    if (shrink) { // we shrink down the iset if we need to
-        int diff = len - 1 - cap;
-        _iset_change_capacity( (void**) iset_ptr, diff);
+        if (shrink) { // we shrink down the iset if we need to
+            int diff = len - 1 - cap;
+            _iset_change_capacity( (void**) iset_ptr, diff);
+        }
     }
 
-    return val;
+    return value;
 }
 
 int iset_deque(int** iset_ptr) { // remove the first element in the iset and shift all elemenets back
-    return ordered_remove(iset_ptr, 0);
+    return iset_ordered_remove(iset_ptr, 0, -1);
 }
 
 void iset_addnew(void** iset_ptr, int val, Player* player, int ind) { // adds the value to the iset
@@ -463,9 +479,10 @@ void check_write(int fd, int return_val) { // function to check the return value
 void kill_client(int fd) {
     printf("killing client %d\n", fd);
 
-    Player* pl = players[fd];
     iset_remove( (char**) &clients, fd, -1 ); // remove client with value fd
     iset_remove( (char**) &players, -1, fd ); // remove the player at index fd
+    iset_ordered_remove(&waiting_clients, -1, fd);
+
     FD_CLR(fd, &readfds);
     close(fd); // close socket on serv side
 }
