@@ -8,11 +8,12 @@
 #include <netinet/in.h>
 #include <sys/select.h>
 
-// 55976
-#define PORT 46050  
+// 55976, 46050
+#define PORT 55976  
 #define MAXSIZE 4096
 #define INITIAL_SET_SIZE 32
-#define MAX_MESSAGE_SIZE 200
+#define MAX_MESSAGE_LENGTH 256
+#define MAX_USER_LENGTH 50
 
 // prototypes
 void accept_client(int soc);
@@ -20,18 +21,20 @@ void check_wait();
 void handle_read(int fd);
 void handle_write(int fd);
 void player_init(int fd);
+void remove_newlines(char *str);
+void join_msg(int fd, char* name);
 
-typedef struct player {
-    char user[32];
-    int element;
-    int last_foe;
-    char message[MAX_MESSAGE_SIZE];
-} Player;
+typedef struct player { // 16-bit aligned
+    char user[32]; // 32
+    int element; // 32
+    int foe; // 32
+    char buffer[MAX_MESSAGE_LENGTH]; // 256
+} Player; 
 
-typedef struct { // 24-byte alligned structure (size_t is 8 bytes)
-    size_t capacity;
-    size_t length;
-    size_t elem_size;
+typedef struct { // 16-byte alligned structure (size_t is 8 bytes)
+    size_t capacity; // 64
+    size_t length; // 64
+    size_t elem_size; // 64
 } Dynamic_Set_Header; // the meta data for a dynamic integer set. we will call an a dynamic integer set "iset" from now on.
 
 #define size_mac(T) sizeof(T)
@@ -274,41 +277,39 @@ int main() {
     FD_SET(soc, &readfds); // add the server socket into read_fds() which will listen for clients to connect
     int max_fd = soc;
 
-    fd_set writefds;
-    FD_ZERO(&writefds);
-
     while (1) {
-        if (select(max_fd + 1, &readfds, &writefds, NULL, NULL) != 1) {
+        printf("pending select\n");
+        if (select(max_fd + 1, &readfds, NULL, NULL, NULL) != 1) {
             perror("select");
             exit(1);
         }
-        
+        printf("selected\n");
+
         if (FD_ISSET(soc, &readfds)) {
             accept_client(soc);
         }
 
         for (int i = 0; i < iset_length(clients); i++) {
             int fd = clients[i];
-            if (fd != soc) {
-                if (FD_ISSET(fd, &readfds)) {
-                    handle_read(fd);
-                }
-                if (FD_ISSET(fd, &writefds)) {
-                    handle_write(fd);
-                }
-                // now reset readfds and writefds to contain everything
-                FD_SET(fd, &readfds); // we add it to both as the same fd is used for both writes and reads
-                FD_SET(fd, &writefds);
+
+            if (FD_ISSET(fd, &readfds)) {
+                // printf("reading from client\n");
+                handle_read(fd);
             }
+            // now reset readfds to contain everything
+            FD_SET(fd, &readfds); 
+
             if (fd > max_fd) {
                 max_fd = fd;
             }
+            printf("%d\n", fd);
         }
     }
     return 0;
 }
 
 void accept_client(int soc) {
+    printf("accepted a client\n");
     struct sockaddr_in client_addr;
     client_addr.sin_family = AF_INET;
     __u_int client_len = sizeof(struct sockaddr_in);
@@ -329,17 +330,16 @@ void accept_client(int soc) {
     }
 }
 
+
 void player_init(int fd) {
     if (fd >= iset_length(players)) {
-        _iset_change_capacity(&players, 32);
+        _iset_change_capacity( (void**) &players, 32);
     }
     Player player;
-    strcpy(player.message, "what is your name warrior\r\n");
-    strcpy(player.element, "");
+    player.element = -1;
+    strcpy(player.user, "\0");
     players[fd] = &player;
- 
-    // strcpy(message, "choose your element (cosmetic only).\r\n");
-    // write(fd, message, MAX_MESSAGE_SIZE);
+    write(fd, "what is your name young one?\r\n", 31);
 }
 
 void check_wait() {
@@ -347,25 +347,66 @@ void check_wait() {
     int fd2 = waiting_clients[1];
     Player* p1 = players[fd1];
     Player* p2 = players[fd2];
-    if (p1->last_foe != p2) { // change last_foe to foe
-        // implement case and also change foe to a pointer to Player
-    }
-}
-
-void handle_write(int fd) {
-    Player* p = players[fd];
-    char message[MAX_MESSAGE_SIZE] = p->message;
-    write(fd, message, MAX_MESSAGE_SIZE);
-
-    if (strcmp(message, "what is your name warrior\r\n") == 0) {
-        /* bababooey */
-    }
-
-    else if (1) {
-        /* bababooey */
+    if (p1->foe != fd2) { 
+        // bababooey
     }
 }
 
 void handle_read(int fd) {
+    Player* pl = players[fd];
+    ssize_t bytes_read = read(fd, pl->buffer, MAX_USER_LENGTH);
+    printf("%s\n", pl->buffer);
+    if (bytes_read == -1) {
+        perror("handle_read");
+        exit(1); 
+    } 
+    
+    else if (bytes_read == 0) {
+        /* client left, kill_client(int fd) */
+    }
 
+    else { // process the buffer data
+        pl->buffer[bytes_read] = '\0';
+        char* newline_ptr = strchr(pl->buffer, '\n');
+
+        if (newline_ptr != NULL) { // user sent a message.
+            if (strcmp(pl->user, "\0") == 0) { // user stated their name
+                strcpy(pl->user, pl->buffer);
+                join_msg(fd, pl->user);
+                printf("%s joined\n", pl->user);
+            }
+
+            else if (pl->element == -1) { // user stated their element
+                int elem = atoi(pl->buffer);
+                if (1 <= elem && elem <= 4) { // valid elemnt
+                    pl->element = elem - 1;
+                }
+
+                else {
+                    write(fd, "not a valid element number\r\n", 29);
+                }
+            }
+        }
+    }
+
+
+}
+
+void remove_newlines(char *str) {
+    char* ptr = strchr(str, '\n'); // find first newline
+    if (ptr != NULL) {
+        *ptr = '\0'; // end from there
+    }
+}
+
+void join_msg(int fd, char* name) {
+    for (int i = 0; i < iset_length(clients); i++) {
+        if (clients[i] != fd) {
+
+            char message[MAX_MESSAGE_LENGTH];
+            sprintf(message, "%s has joined\r\n", name);
+
+            write(fd, name, MAX_MESSAGE_LENGTH);
+        }
+    }
 }
