@@ -7,6 +7,7 @@
 #include <sys/socket.h> 
 #include <netinet/in.h>
 #include <sys/select.h>
+#include <time.h> // for rand
 
 // 55976, 46050
 #define PORT 55976  
@@ -27,6 +28,7 @@ void remove_newlines(char *str);
 void join_msg(int fd, char* name);
 void initiate_battle(int fd1, int fd2);
 void player_set_stats(int fd);
+void special_move(int val, char* moves);
 
 typedef struct player { // 16-bit aligned
     char user[32]; // 32
@@ -199,12 +201,12 @@ void iset_remove(char** iset_ptr, int val, int ind) { // removes the value from 
 int iset_ordered_remove(int** iset_ptr, int ind, int val) { // only for integer sets!! not player set
     int* iset = *iset_ptr;
     size_t len = iset_length(iset);
+    size_t cap = iset_capacity(iset);
+
     if (len == 0) {
-        fprintf(stderr, "iset_remove: attempting to remove an integer from an empty iset\n");
-        exit(1);
+        return -1;
     }
 
-    size_t cap = iset_capacity(iset);
     int shrink = 0; // flag for whether we will shrink down the iset or not.
     if ( (cap - (len - 1) >= 32) && len != 1) { 
         shrink = 1;
@@ -239,10 +241,6 @@ int iset_ordered_remove(int** iset_ptr, int ind, int val) { // only for integer 
     }
 
     return value;
-}
-
-int iset_deque(int** iset_ptr) { // remove the first element in the iset and shift all elemenets back
-    return iset_ordered_remove(iset_ptr, 0, -1);
 }
 
 void iset_addnew(void** iset_ptr, int val, Player* player, int ind) { // adds the value to the iset
@@ -322,10 +320,6 @@ int main() {
 
         if (FD_ISSET(soc, &readfds)) {
             accept_client(soc);
-        }
-
-        if (FD_ISSET(4, &readfds)) {
-            printf("4 is ready\n");
         }
 
         for (int i = 0; i < iset_length(clients); i++) {
@@ -409,8 +403,8 @@ void handle_read(int fd) {
                 strcpy(pl->user, pl->msg);
                 join_msg(fd, pl->user);
                 printf("%s joined\n", pl->user); // server side message for testing
-                int write_check = write_with_size(fd, "Choose your element (affects stats).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
-                check_write(fd, write_check);
+                // int write_check = write_with_size(fd, "Choose your element (affects stats).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
+                // check_write(fd, write_check);
             }
 
             else if (pl->element == -1) { // user stated their element
@@ -449,11 +443,13 @@ void remove_newlines(char *str) {
 void join_msg(int fd, char* name) {
     for (int i = 0; i < iset_length(clients); i++) {
         if (clients[i] != fd) {
+            int msg_size = sizeof(name) + 14;
+            char message[msg_size];
+            strcpy(message, "**");
+            strcat(message, name);
+            strcat(message, " has joined**\r\n");
 
-            char message[MAX_MESSAGE_LENGTH];
-            sprintf(message, "%s has joined\r\n", name);
-
-            write(fd, name, MAX_MESSAGE_LENGTH);
+            write(clients[i], message, sizeof(message));
         }
     }
 }
@@ -489,13 +485,30 @@ void kill_client(int fd) {
     close(fd); // close socket on serv side
 }
 
-void check_wait() {
-    int fd1 = waiting_clients[0];
-    int fd2 = waiting_clients[1];
+int not_foes(int fd1, int fd2) {
     Player* p1 = players[fd1];
     Player* p2 = players[fd2];
-    if (p1->foe != fd2 && p2->foe != fd1) {  // we check both in case we have duplicates on socket
-        initiate_battle(fd1, fd2);
+    return (p1->foe != fd2) || (p2->foe != fd1);
+}
+
+void check_wait() {
+    int fd1 = waiting_clients[0];
+    int fd2;
+    int wait_len = iset_length(waiting_clients);
+
+    for (int i = 1; i < wait_len; i++) {
+        fd2 = waiting_clients[i];
+        if (not_foes(fd1, fd2)) {
+            iset_ordered_remove(&waiting_clients, 0, -1); // remove first element
+            iset_ordered_remove(&waiting_clients, i, -1); // remove matching client
+            initiate_battle(fd1, fd2);
+            return;
+        }
+    }
+
+    if (wait_len > 2) {
+        fprintf(stderr, "check_wait: 3+ clients but no matches occuring\n");
+        exit(1);
     }
 }
 
@@ -540,5 +553,66 @@ void player_set_stats(int fd) {
 }
 
 void initiate_battle(int fd1, int fd2) {
+    Player* p1 = players[fd1];
+    Player* p2 = players[fd2];
+    p1->foe = fd2;
+    p1->foe = fd1;
+    int first;
+    int second;
+    int write_val;
 
+    srand(time(NULL));
+    int random_number = rand();
+
+    if (random_number <= RAND_MAX / 2) { 
+        first = fd1;
+        second = fd2;
+    }
+
+    else {
+        first = fd2;
+        second = fd1;
+    }
+
+    p1 = players[first];
+    p2 = players[second];
+
+    char message[MAX_MESSAGE_LENGTH];
+    // char message2[MAX_MESSAGE_LENGTH];
+    char moves[10];
+
+    // send to first player
+    strcpy(message, "You engage ");
+    strcat(message, p2->user);
+    strcat(message, "!");
+    write_val = write_with_size(first, message);
+    check_write(first, write_val);
+
+    special_move(p1->special_count, moves);
+    sprintf(message, "Your hp: %d\nYour special moves: %s\n", p1->hp, moves);
+
+
+    // send to second player
+    strcpy(message, "You engage ");
+    strcat(message, p1->user);
+    strcat(message, "!");
+    write_val = write_with_size(second, message);
+    check_write(second, write_val);
+
+    special_move(p2->special_count, moves);
+    sprintf(message, "Your hp: %d\nYour special moves: %s\n", p2->hp, moves);
+
+
+
+}
+
+void special_move(int val, char* moves) {
+    if (val == -1) {
+        strcpy(moves, "inf");
+    }
+    else {
+        char msg[5];
+        sprintf(msg, "%d", val);
+        strcpy(moves, msg);
+    }
 }
