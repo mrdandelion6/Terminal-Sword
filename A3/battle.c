@@ -16,6 +16,7 @@
 #define MAX_USER_LENGTH 50
 
 // prototypes
+void kill_client(int fd);
 void check_write(int fd, int return_val);
 int write_with_size(int fd, char* s);
 void accept_client(int soc);
@@ -119,24 +120,25 @@ int _iset_index_of(int* iset, int val) { // returns the index of a value in an i
     return index;    
 }
 
-void iset_remove(int** iset_ptr, int val) { // removes the value from the iset
-    // rmk: only to be called by a true integer set.
-    if (val < 0) {
-        fprintf(stderr, "iset_remove: attempting to remove a negative integer from the iset\n");
-        exit(1);
-    }
+void iset_remove(char** iset_ptr, int val, int ind) { // removes the value from the iset by index if index is given.
 
-    int* iset = *iset_ptr;
+    char* iset = *iset_ptr;
     size_t len = iset_length(iset);
     if (len == 0) {
-        fprintf(stderr, "iset_remove: attempting to remove an integer from an empty iset\n");
+        fprintf(stderr, "iset_remove: attempting to remove a value from an empty iset\n");
         exit(1);
     }
 
-    int index = _iset_index_of(iset, val); 
-    if (index == -1) {
-        fprintf(stderr, "iset_remove: attempting to remove an integer not in the iset\n");
-        exit(1);
+    int index;
+    if (ind != -1) {
+        index = ind;
+    }
+    else {
+        index = _iset_index_of( (int*) iset, val ); 
+        if (index == -1) {
+            fprintf(stderr, "iset_remove: attempting to remove a value not in the iset\n");
+            exit(1);
+        }
     }
 
     size_t cap = iset_capacity(iset);
@@ -145,7 +147,7 @@ void iset_remove(int** iset_ptr, int val) { // removes the value from the iset
         shrink = 1;
     }
 
-    iset[index] = iset[len - 1]; // replace the value we are removing with the last item
+    iset[index * iset_size(iset)] = iset[(len - 1) * iset_size(iset)]; // replace the value we are removing with the last item
     _iset_change_length(iset, -1);
 
     if (shrink) { // we shrink down the iset if we need to
@@ -154,32 +156,6 @@ void iset_remove(int** iset_ptr, int val) { // removes the value from the iset
     }
 }
 
-void pset_remove(Player*** pset_ptr, int index) { // remove player at a given index
-    Player** pset = *pset_ptr;
-    size_t len = iset_length(pset);
-    if (len == 0) {
-        fprintf(stderr, "pset_remove: attempting to remove a player from an empty iset\n");
-        exit(1);
-    }
-
-    if (index < 0) {
-        fprintf(stderr, "pset_remove: attempting to access negative index.");
-        exit(1);
-    }
-
-    size_t cap = iset_capacity(pset);
-    int shrink = 0; // flag for whether we will shrink down the iset or not.
-    if ( (cap - (len - 1) >= 32) && len != 1) { 
-        shrink = 1;
-    }
-    pset[index] = pset[len - 1]; // replace the value we are removing with the last item
-    _iset_change_length(pset, -1);
-
-    if (shrink) { // we shrink down the iset if we need to
-        int diff = len - 1 - cap;
-        _iset_change_capacity( (void**) pset_ptr, diff);
-    }    
-}
 
 int iset_deque(int** iset_ptr) { // remove the first element in the iset and shift all elemenets back
     int* iset = *iset_ptr;
@@ -245,13 +221,14 @@ int* clients;
 int* waiting_clients;
 int* cooldown_list;
 Player** players;
+// players[i] corresponds to the player pointer for a client with fd value i
 
 int main() {
 
     clients = iset_init("int");
     waiting_clients = iset_init("int");
     cooldown_list = iset_init("int");
-    players = (Player**) iset_init("Player*");
+    players = (Player**) iset_init("Player*"); // cast to pset
 
     int soc = socket(AF_INET, SOCK_STREAM, 0);
     int yes = 1;
@@ -441,4 +418,8 @@ void check_write(int fd, int return_val) { // function to check the return value
         kill_client(fd);
     }
 
+}
+
+void kill_client(int fd) {
+    Player* pl = players[fd];
 }
