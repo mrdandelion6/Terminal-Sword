@@ -29,6 +29,10 @@ void join_msg(int fd, char* name);
 void initiate_battle(int fd1, int fd2);
 void player_set_stats(int fd);
 void special_move(int val, char* moves);
+void norm_attack(int fd1, int fd2);
+void power_attack(int fd1, int fd2);
+void taunt(int fd1, int fd2);
+void check_win(int fd1, int fd2);
 
 typedef struct player { // 16-bit aligned
     char user[32]; // 32
@@ -41,6 +45,7 @@ typedef struct player { // 16-bit aligned
     int special_dmg;
     float special_chance;
     int special_count;
+    int turn;
 } Player; 
 
 // IMPORTANT CONSTANTS
@@ -151,9 +156,9 @@ int _iset_index_of(int* iset, int val) { // returns the index of a value in an i
     return index;    
 }
 
-void iset_remove(char** iset_ptr, int val, int ind) { // removes the value from the iset by index if index is given.
+void iset_remove(void** iset_ptr, int val, int ind) { // removes the value from the iset by index if index is given.
 
-    char* iset = *iset_ptr;
+    void* iset = *iset_ptr;
     size_t len = iset_length(iset);
     if (len == 0) {
         fprintf(stderr, "iset_remove: attempting to remove a value from an empty iset\n");
@@ -164,7 +169,8 @@ void iset_remove(char** iset_ptr, int val, int ind) { // removes the value from 
     if (ind != -1) {
         index = ind;
     }
-    else {
+
+    else { // if index is -1, then it's an integer set
         index = _iset_index_of( (int*) iset, val ); 
         if (index == -1) {
             fprintf(stderr, "iset_remove: attempting to remove a value not in the iset\n");
@@ -175,19 +181,22 @@ void iset_remove(char** iset_ptr, int val, int ind) { // removes the value from 
     size_t cap = iset_capacity(iset);
     size_t size = iset_size(iset);
 
+    printf("size is %lu\n", size);
     if (size == sizeof(int)) { // for iset
-        iset[index * size] = iset[(len - 1) * size]; // replace the value we are removing with the last item
+        printf("got here 1\n");
+        ((int*) iset)[index] = ((int*) iset)[len -1]; // replace the value we are removing with the last item
+        printf("got here 2\n");
         _iset_change_length(iset, -1);
-
         if ( (cap - (len - 1) >= 32) && len != 1) {  
             int diff = len - 1 - cap;
             _iset_change_capacity( (void**) iset_ptr, diff);
         }
-
     }
+    
 
     else { // for player set
-        ( (Player**) iset)[index] = NULL;
+        free( ( (Player**) iset )[index] ); // free the memory for player
+        ( (Player**) iset )[index] = NULL;
         _iset_change_length(iset, -1);
         int maxfd = iset_max(clients);
         if ( (cap - maxfd >= 32) && maxfd != 0) {
@@ -366,13 +375,19 @@ void player_init(int fd) {
     if (fd >= iset_length(players)) {
         _iset_change_capacity( (void**) &players, 32);
     }
-    Player player;
-    player.element = -1;
-    strcpy(player.user, "\0");
-    strcpy(player.msg, "\0");
-    player.foe = -1;
 
-    iset_addnew((void**) &players, -1, &player, fd);
+    Player* player = malloc(sizeof(Player)); // allocate memory dynamically
+    if (player == NULL) {
+        perror("malloc");
+        exit(1);
+    }
+    player->element = -1;
+    strcpy(player->user, "\0");
+    strcpy(player->msg, "\0");
+    player->foe = -1;
+    player->turn = 0;
+
+    iset_addnew((void**) &players, -1, player, fd); // store the pointer to the dynamically allocated memory
 
     int write_check = write_with_size(fd, "What is your name young one?\r\n");
     check_write(fd, write_check);
@@ -380,6 +395,7 @@ void player_init(int fd) {
 
 void handle_read(int fd) {
     Player* pl = players[fd];
+    printf("name is: %s\n", pl->user);
     ssize_t bytes_read = read(fd, pl->buffer, MAX_USER_LENGTH);
     if (bytes_read == -1) {
         perror("read");
@@ -394,41 +410,60 @@ void handle_read(int fd) {
         pl->buffer[bytes_read] = '\0';
         strcat(pl->msg, pl->buffer);
 
-        char* newline_ptr = strchr(pl->buffer, '\n');
-
-        if (newline_ptr != NULL) { // user sent a message.
-            remove_newlines(pl->msg);
-
-            if (strcmp(pl->user, "\0") == 0) { // user stated their name
-                strcpy(pl->user, pl->msg);
-                join_msg(fd, pl->user);
-                printf("%s joined\n", pl->user); // server side message for testing
-                // int write_check = write_with_size(fd, "Choose your element (affects stats).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
-                // check_write(fd, write_check);
+        if (pl->turn) { // handle input immediately when its the player's turn
+            printf("yoo!!?!?!\n");
+            if ( (strcmp(pl->buffer, "a")) == 0 ) {
+                norm_attack(fd, pl->foe);
             }
 
-            else if (pl->element == -1) { // user stated their element
-                int elem = atoi(pl->msg);
-                if (1 <= elem && elem <= 4) { // valid elemnt
-                    pl->element = elem - 1;
-                    printf("%s chosen\n", elements[pl->element]); // server side message for testing
-                    int write_check = write_with_size(fd, choose_msg[pl->element]);
+            else if ( (strcmp(pl->buffer, "p")) == 0 ) {
+                power_attack(fd, pl->foe);
+            }
+
+            else if ( (strcmp(pl->buffer, "s")) == 0 ) {
+                taunt(fd, pl->foe);
+            }
+            
+        }
+
+        else {
+            char* newline_ptr = strchr(pl->buffer, '\n');
+
+            if (newline_ptr != NULL) { // user sent a message.
+                remove_newlines(pl->msg);
+
+                if (strcmp(pl->user, "\0") == 0) { // user stated their name
+                    strcpy(pl->user, pl->msg);
+                    join_msg(fd, pl->user);
+                    printf("%s joined\n", pl->user); // server side message for testing
+                    int write_check = write_with_size(fd, "Choose your element (affects stats).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
                     check_write(fd, write_check);
-                    write_check = write_with_size(fd, "Waiting for an oponent..\r\n");
-                    check_write(fd, write_check);
-                    iset_addnew((void**) &waiting_clients, fd, NULL, -1);
-                    player_set_stats(fd);
-                    if (iset_length(waiting_clients) >= 2) {
-                        check_wait();
+                }
+
+                else if (pl->element == -1) { // user stated their element
+                    printf("yoo: %s\n", pl->user);
+                    int elem = atoi(pl->msg);
+                    if (1 <= elem && elem <= 4) { // valid elemnt
+                        pl->element = elem - 1;
+                        printf("%s chosen\n", elements[pl->element]); // server side message for testing
+                        int write_check = write_with_size(fd, choose_msg[pl->element]);
+                        check_write(fd, write_check);
+                        write_check = write_with_size(fd, "Waiting for an opponent..\r\n");
+                        check_write(fd, write_check);
+                        iset_addnew((void**) &waiting_clients, fd, NULL, -1);
+                        player_set_stats(fd);
+                        if (iset_length(waiting_clients) >= 2) {
+                            check_wait();
+                        }
+                    }
+                    else {
+                        int write_check = write_with_size(fd, "Not a valid element number!\r\n");
+                        check_write(fd, write_check);
                     }
                 }
-                else {
-                    int write_check = write_with_size(fd, "Not a valid element number!\r\n");
-                    check_write(fd, write_check);
-                }
+                strcpy(pl->buffer, "\0");
+                strcpy(pl->msg, "\0");
             }
-            strcpy(pl->buffer, "\0");
-            strcpy(pl->msg, "\0");
         }
     }
 }
@@ -449,7 +484,7 @@ void join_msg(int fd, char* name) {
             strcat(message, name);
             strcat(message, " has joined**\r\n");
 
-            write(clients[i], message, sizeof(message));
+            write_with_size(clients[i], message);
         }
     }
 }
@@ -471,14 +506,26 @@ void check_write(int fd, int return_val) { // function to check the return value
 
 }
 
+void auto_win(int fd) {
+    int write_check = write_with_size(fd, "Your opponent has forfeit. You win!\r\n");
+    check_write(fd, write_check);
+
+    iset_addnew((void**) &waiting_clients, fd, NULL, -1); // add back to list of waiting clients.
+
+    write_check = write_with_size(fd, "Waiting for an opponent..\r\n");
+    check_write(fd, write_check);
+}
+
 void kill_client(int fd) {
     printf("killing client %d\n", fd);
+    int foe = players[fd]->foe;
 
-    iset_remove( (char**) &clients, fd, -1 ); // remove client with value fd
-    iset_remove( (char**) &players, -1, fd ); // remove the player at index fd
+    iset_remove( (void**) &clients, fd, -1 ); // remove client with value fd
+    printf("YAA\n");
+    iset_remove( (void**) &players, -1, fd ); // remove the player at index fd
     int val = iset_ordered_remove(&waiting_clients, -1, fd);
     if (val == -1) { // then fd was in the middle of a game!
-        /* handle other player winning */
+        auto_win(foe);
     }
 
     FD_CLR(fd, &readfds);
@@ -584,26 +631,45 @@ void initiate_battle(int fd1, int fd2) {
     // send to first player
     strcpy(message, "You engage ");
     strcat(message, p2->user);
-    strcat(message, "!");
+    strcat(message, "!\r\n");
     write_val = write_with_size(first, message);
     check_write(first, write_val);
 
     special_move(p1->special_count, moves);
-    sprintf(message, "Your hp: %d\nYour special moves: %s\n", p1->hp, moves);
+    sprintf(message, "You have %d hp.\nYou have %s power moves moves. \r\n", p1->hp, moves);
+    write_val = write_with_size(first, message);
+    check_write(first, write_val);
 
+    sprintf(message, "\n%s's hp: %d \r\n\n", p2->user, p2->hp);
+    write_val = write_with_size(first, message);
+    check_write(first, write_val);
+
+    strcpy(message, "(a)ttack\n(p)ower move\n(s)peak something\r\n");
+    write_val = write_with_size(first, message);
+    check_write(first, write_val);
+    p1->turn = 1;
+    
 
     // send to second player
     strcpy(message, "You engage ");
     strcat(message, p1->user);
-    strcat(message, "!");
+    strcat(message, "!\r\n");
     write_val = write_with_size(second, message);
     check_write(second, write_val);
 
     special_move(p2->special_count, moves);
-    sprintf(message, "Your hp: %d\nYour special moves: %s\n", p2->hp, moves);
+    sprintf(message, "You have %d hp.\nYou have %s power moves moves.\r\n", p2->hp, moves);
+    write_val = write_with_size(second, message);
+    check_write(second, write_val);
 
+    sprintf(message, "\n%s's hp: %d \r\n", p1->user, p1->hp);
+    write_val = write_with_size(second, message);
+    check_write(second, write_val);
 
-
+    sprintf(message, "Waiting for %s to strike...\n", p1->user);
+    write_val = write_with_size(second, message);
+    check_write(second, write_val);
+    
 }
 
 void special_move(int val, char* moves) {
@@ -615,4 +681,21 @@ void special_move(int val, char* moves) {
         sprintf(msg, "%d", val);
         strcpy(moves, msg);
     }
+}
+
+void norm_attack(int fd1, int fd2) {
+
+
+}
+void power_attack(int fd1, int fd2) {
+
+
+}
+void taunt(int fd1, int fd2) {
+
+
+}
+void check_win(int fd1, int fd2) {
+
+    
 }

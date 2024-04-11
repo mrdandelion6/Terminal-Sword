@@ -7,7 +7,9 @@
 ### challenge: 
 - managing the player state for a dynamic set of clients
 ### solution: 
-- use another dynamic set, but each element is of type struct player
+- use another dynamic set, but each element is of type pointer to struct player
 ---
 ### challenge:
-- reading and writing several stuff at once
+- using select() propertly for reading and writing several stuff at once
+### solution:
+- 
