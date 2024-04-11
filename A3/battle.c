@@ -26,6 +26,7 @@ void player_init(int fd);
 void remove_newlines(char *str);
 void join_msg(int fd, char* name);
 void initiate_battle(int fd1, int fd2);
+void player_set_stats(int fd);
 
 typedef struct player { // 16-bit aligned
     char user[32]; // 32
@@ -33,6 +34,11 @@ typedef struct player { // 16-bit aligned
     int foe; // 32
     char buffer[MAX_MESSAGE_LENGTH]; // 256
     char msg[MAX_MESSAGE_LENGTH]; // 256
+    int hp;
+    int normal_dmg;
+    int special_dmg;
+    float special_chance;
+    int special_count;
 } Player; 
 
 // IMPORTANT CONSTANTS
@@ -403,7 +409,7 @@ void handle_read(int fd) {
                 strcpy(pl->user, pl->msg);
                 join_msg(fd, pl->user);
                 printf("%s joined\n", pl->user); // server side message for testing
-                int write_check = write_with_size(fd, "Choose your element (cosmetic only).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
+                int write_check = write_with_size(fd, "Choose your element (affects stats).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
                 check_write(fd, write_check);
             }
 
@@ -417,6 +423,7 @@ void handle_read(int fd) {
                     write_check = write_with_size(fd, "Waiting for an oponent..\r\n");
                     check_write(fd, write_check);
                     iset_addnew((void**) &waiting_clients, fd, NULL, -1);
+                    player_set_stats(fd);
                     if (iset_length(waiting_clients) >= 2) {
                         check_wait();
                     }
@@ -492,7 +499,46 @@ void check_wait() {
     }
 }
 
-void initiate_battle(int fd1, int fd2) {
+void player_set_stats(int fd) {
+    Player* pl = players[fd];
+    int elem = pl->element;
 
+    switch (elem) {
+        case 0: // fire
+            pl->hp = 100;
+            pl->normal_dmg = 20;
+            pl->special_dmg = 70;
+            pl->special_chance = 0.8;
+            pl->special_count = 1;
+            break;
+        case 1: // water
+            pl->hp = 150;
+            pl->normal_dmg = 15;
+            pl->special_dmg = 30;
+            pl->special_chance = 0.5;
+            pl->special_count = 10;
+            break;
+        case 2: // air
+            pl->hp = 90;
+            pl->normal_dmg = 20;
+            pl->special_dmg = 50;
+            pl->special_chance = 0.6;
+            pl->special_count = 2;
+            break; 
+        case 3: // blood
+            pl->hp = 120;
+            pl->normal_dmg = 5;
+            pl->special_dmg = 999;
+            pl->special_chance = 0.1;
+            pl->special_count = -1; // infinite
+            break;
+        default:
+            fprintf(stderr, "player_set_stats: invalid element set\n");
+            exit(1);
+            break;
+    }
+}
+
+void initiate_battle(int fd1, int fd2) {
 
 }
