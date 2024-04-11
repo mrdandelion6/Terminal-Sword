@@ -32,7 +32,7 @@ void special_move(int val, char* moves);
 void norm_attack(int fd1, int fd2);
 void power_attack(int fd1, int fd2);
 void taunt(int fd1, int fd2);
-int check_win(int fd1, int fd2);
+void check_win(int fd1, int fd2);
 
 typedef struct player { // 16-bit aligned
     char user[32]; // 32
@@ -672,6 +672,22 @@ void initiate_battle(int fd1, int fd2) {
     
 }
 
+void attack_prompts(int fd1, int fd2) { // send the attack prompts, given that fd1's turn
+    usleep(700000);
+    Player* p1 = players[fd1];
+
+    char message[MAX_MESSAGE_LENGTH];
+    int write_val;
+
+    strcpy(message, "(a)ttack\n(p)ower move\n(s)peak something\r\n");
+    write_val = write_with_size(fd1, message);
+    check_write(fd1, write_val);
+
+    sprintf(message, "Waiting for %s to strike...\n", p1->user);
+    write_val = write_with_size(fd2, message);
+    check_write(fd2, write_val);
+}
+
 void special_move(int val, char* moves) {
     if (val == -1) {
         strcpy(moves, "inf");
@@ -713,8 +729,24 @@ void norm_attack(int fd1, int fd2) {
     p2->hp -= p1->normal_dmg;
 
     p1->turn =  0;
-    int result = check_win(fd1, fd2);
-    if (result != 1) { // didnt win
+    check_win(fd1, fd2);
+}
+void power_attack(int fd1, int fd2) {
+
+
+}
+void taunt(int fd1, int fd2) {
+
+
+}
+void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. one-way check, not bidirectional!
+    char message[MAX_MESSAGE_LENGTH];
+    int write_check;
+    Player* p1 = players[fd1];
+    Player* p2 = players[fd2];
+
+    int win = players[fd2]->hp <= 0;
+    if (!win) { // didnt win
         char s_move[10];
 
         special_move(p1->special_count, s_move);
@@ -728,24 +760,27 @@ void norm_attack(int fd1, int fd2) {
         check_write(fd2, write_check);
 
         p2->turn = 1;
-    } else {
+        attack_prompts(fd2, fd1);
+    }
+
+    else { // won
         sprintf(message, "You defeated %s!\r\n\n", p2->user);
+        write_check = write_with_size(fd1, message);
+        check_write(fd1, write_check);
+        sprintf(message, "Waiting for new match...\n");
         write_check = write_with_size(fd1, message);
         check_write(fd1, write_check);
 
         sprintf(message, "You lost.\r\n\n");
         write_check = write_with_size(fd2, message);
         check_write(fd2, write_check);
+        sprintf(message, "Waiting for new match...\n");
+        write_check = write_with_size(fd2, message);
+        check_write(fd2, write_check);
+
+        player_set_stats(fd1);
+        iset_addnew((void**) &waiting_clients, fd1, NULL, -1);
+        player_set_stats(fd2);
+        iset_addnew((void**) &waiting_clients, fd2, NULL, -1);
     }
-}
-void power_attack(int fd1, int fd2) {
-
-
-}
-void taunt(int fd1, int fd2) {
-
-
-}
-int check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. one-way check, not bidirectional!
-    return players[fd2]->hp <= 0;
 }
