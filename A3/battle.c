@@ -318,7 +318,7 @@ int main() {
 
     while (1) {
         printf("pending select\n");
-        
+
         if (select(max_fd + 1, &readfds, NULL, NULL, NULL) != 1) {
             perror("select");
             exit(1);
@@ -332,12 +332,17 @@ int main() {
         for (int i = 0; i < iset_length(clients); i++) {
             int fd = clients[i];
             // now reset readfds to contain everything
-            FD_SET(fd, &readfds); 
-
+            
             if (FD_ISSET(fd, &readfds)) {
                 printf("reading from client %d\n", fd);
                 handle_read(fd);
             }
+        }
+
+        for (int i = 0; i < iset_length(clients); i++) { // second loop for this
+            int fd = clients[i];
+            printf("adding %d\n", fd);
+            FD_SET(fd, &readfds); 
         }
 
         if (iset_length(clients) > 0) {
@@ -509,11 +514,15 @@ void auto_win(int fd) {
     int write_check = write_with_size(fd, "Your opponent has forfeit. You win!\r\n");
     check_write(fd, write_check);
 
+    printf("no issue here 1\n");
     player_set_stats(fd);
+    printf("no issue here 2\n");
     iset_addnew((void**) &waiting_clients, fd, NULL, -1); // add back to list of waiting clients.
 
+    printf("no issue here 3\n");
     write_check = write_with_size(fd, "Waiting for an opponent..\r\n");
     check_write(fd, write_check);
+    printf("no issue here 4\n");
 }
 
 void kill_client(int fd) {
@@ -523,6 +532,7 @@ void kill_client(int fd) {
 
     iset_remove( (void**) &clients, fd, -1 ); // remove client with value fd
     iset_remove( (void**) &players, -1, fd ); // remove the player at index fd
+    iset_ordered_remove( &waiting_clients, -1, fd);
 
     printf("got here 1\n");
     if (pl->turn >= 0) { // then fd was in the middle of a game!
@@ -562,8 +572,12 @@ void check_wait() {
 }
 
 void player_set_stats(int fd) {
+    printf("socket is %d\n", fd);
     Player* pl = players[fd];
     int elem = pl->element;
+    printf("whata??\n");
+
+    pl->turn = -1;
 
     switch (elem) {
         case 0: // fire
@@ -706,8 +720,6 @@ void norm_attack(int fd1, int fd2) {
     Player* p1 = players[fd1];
     Player* p2 = players[fd2];
 
-    printf("player 1: %d, player 2: %d", fd1, fd2);
-
     // write messages
     char message[MAX_MESSAGE_LENGTH];
     int write_check;
@@ -734,9 +746,67 @@ void norm_attack(int fd1, int fd2) {
     p1->turn =  0;
     check_win(fd1, fd2);
 }
+
+int hit(float chance) {
+    float random_num = (float)rand() / RAND_MAX;
+    return random_num < chance;
+}
+
+
 void power_attack(int fd1, int fd2) {
+    Player* p1 = players[fd1];
+    Player* p2 = players[fd2];
+    
+    // write messages
+    char message[MAX_MESSAGE_LENGTH];
+    int write_check;
 
+    if (p1->special_count == 0) {
+        sprintf(message, "You have no power moves left!\r\n");
+        write_check = write_with_size(fd1, message);
+        check_write(fd1, write_check);
+        return;
+    }
 
+    int attack_hit = hit(p1->special_chance);
+
+    // write to fd1
+    sprintf(message, "\nYou: '%s'\r\n", spec_moves[p1->element]);
+    write_check = write_with_size(fd1, message);
+    check_write(fd1, write_check);
+
+    // write to fd2
+    sprintf(message, "%s: '%s'", p1->user, spec_moves[p1->element]);
+    write_check = write_with_size(fd2, message);
+    check_write(fd2, write_check);
+    
+    if (attack_hit) {
+        sprintf(message, "\nYou hit %s for %d damage!\r\n\n", p2->user, p1->special_dmg);
+        write_check = write_with_size(fd1, message);
+        check_write(fd1, write_check);
+
+        sprintf(message, "\n\n%s hits you for %d damage!\r\r\n", p1->user, p1->special_dmg);
+        write_check = write_with_size(fd2, message);
+        check_write(fd2, write_check);
+
+        p2->hp -= p1->special_dmg;
+    }
+    
+    else {
+        sprintf(message, "\nYou missed..\r\n\n");
+        write_check = write_with_size(fd1, message);
+        check_write(fd1, write_check);
+
+        sprintf(message, "\n\n%s missed..\r\r\n", p1->user);
+        write_check = write_with_size(fd2, message);
+        check_write(fd2, write_check);
+    }
+
+    if (p1->special_count != -1) {
+        p1->special_count--;
+    }
+    p1->turn =  0;
+    check_win(fd1, fd2);
 }
 void taunt(int fd1, int fd2) {
 
