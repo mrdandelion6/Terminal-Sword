@@ -1,0 +1,7 @@
+token.txt
+.gitkeep
+.vscode
+additional/
+
+battle
+*.o
