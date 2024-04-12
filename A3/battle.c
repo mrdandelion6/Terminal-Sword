@@ -46,6 +46,7 @@ typedef struct player { // 16-bit aligned
     float special_chance;
     int special_count;
     int turn; // players have -1 turn if they arent in game, 0 if they are in game but not their turn, and 1 if they are in game and its their turn.
+    int speaking;
 } Player; 
 
 // IMPORTANT CONSTANTS
@@ -389,6 +390,7 @@ void player_init(int fd) {
     strcpy(player->msg, "\0");
     player->foe = -1;
     player->turn = -1;
+    player->speaking = 0;
 
     iset_addnew((void**) &players, -1, player, fd); // store the pointer to the dynamically allocated memory
 
@@ -413,7 +415,7 @@ void handle_read(int fd) {
         pl->buffer[bytes_read] = '\0';
         strcat(pl->msg, pl->buffer);
 
-        if (pl->turn == 1) { // handle input immediately when its the player's turn
+        if (pl->turn == 1 && !pl->speaking) { // handle input immediately when its the player's turn
             printf("yoo!!?!?!\n");
             if ( (strcmp(pl->buffer, "a")) == 0 ) {
                 norm_attack(fd, pl->foe);
@@ -426,7 +428,8 @@ void handle_read(int fd) {
             else if ( (strcmp(pl->buffer, "s")) == 0 ) {
                 taunt(fd, pl->foe);
             }
-            
+            strcpy(pl->buffer, "");
+            strcpy(pl->msg, "");
         }
 
         else {
@@ -435,7 +438,13 @@ void handle_read(int fd) {
             if (newline_ptr != NULL) { // user sent a message.
                 remove_newlines(pl->msg);
 
-                if (strcmp(pl->user, "\0") == 0) { // user stated their name
+                if (pl->speaking) {
+                    int foe = pl->foe;
+                    int write_check = write_with_size(foe, pl->msg);
+                    check_write(fd, write_check);
+                }
+
+                else if (strcmp(pl->user, "\0") == 0) { // user stated their name
                     strcpy(pl->user, pl->msg);
                     join_msg(fd, pl->user);
                     printf("%s joined\n", pl->user); // server side message for testing
@@ -809,8 +818,17 @@ void power_attack(int fd1, int fd2) {
     check_win(fd1, fd2);
 }
 void taunt(int fd1, int fd2) {
+    Player* p1 = players[fd1];
+    char message[MAX_MESSAGE_LENGTH];
+    int write_check;
 
+    sprintf(message, "\nSpeak:");
+    write_check = write_with_size(fd1, message);
+    check_write(fd1, write_check);
 
+    p1->speaking = 1;
+    strcpy(p1->buffer, "");
+    strcpy(p1->msg, "");
 }
 void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. one-way check, not bidirectional!
     char message[MAX_MESSAGE_LENGTH];
