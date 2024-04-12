@@ -11,7 +11,7 @@
 
 // 55976, 46050
 #ifndef PORT
-#define PORT 55976  
+    #define PORT 55976  
 #endif  
 #define MAXSIZE 4096
 #define INITIAL_SET_SIZE 32
@@ -448,6 +448,7 @@ void handle_read(int fd) {
 
                 else if (strcmp(pl->user, "\0") == 0) { // user stated their name
                     strcpy(pl->user, pl->msg);
+                    // pl->user[255] = '\0';
                     join_msg(fd, pl->user);
                     printf("%s joined\n", pl->user); // server side message for testing
                     int write_check = write_with_size(fd, "Choose your element (affects stats).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
