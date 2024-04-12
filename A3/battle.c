@@ -10,7 +10,9 @@
 #include <time.h> // for rand
 
 // 55976, 46050
+#ifndef PORT
 #define PORT 55976  
+#endif  
 #define MAXSIZE 4096
 #define INITIAL_SET_SIZE 32
 #define MAX_MESSAGE_LENGTH 256
