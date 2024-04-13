@@ -1,23 +1,22 @@
-# Default port number
+# default port number
 PORT = 55976
 
-# Compiler to use
+# compiler to use
 CC = gcc
 
-# Compiler flags
+# compiler flags
 CFLAGS = -DPORT=$(PORT) -g -Wall
 
-# Source files
-SRC = battle.c
+# source files
+SRC = sword.c
 
-# Object files
+# object files
 OBJ = $(SRC:.c=.o)
 
-# Executable name
-EXEC = battle
+# executable name
+EXEC = sword
 
 .PHONY: all clean
-
 all: $(EXEC)
 
 $(EXEC): $(OBJ)
