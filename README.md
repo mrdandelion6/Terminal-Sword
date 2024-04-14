@@ -1,6 +1,6 @@
 # Terminal Sword
 
-Terminal Sword is a low level C project hosting an online multiplayer terminal-based sword game using stream sockets with a TCP protocol.
+Terminal Sword is a low level C project hosting an online multiplayer terminal-based sword game using stream sockets with the TCP protocol.
 
 ## Installation
 
