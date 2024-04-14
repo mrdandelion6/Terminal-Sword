@@ -40,3 +40,7 @@ This project requires the following dependencies:
 
 - C compiler (e.g., GCC)
 - Linux Terminal (e.g., Ubuntu)
+
+## Gameplay
+
+For gameplay documentation, see `game-documentation.pdf` in `documentation`.
