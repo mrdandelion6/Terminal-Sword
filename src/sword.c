@@ -291,6 +291,7 @@ int main() {
     clients = iset_init(sizeof(int));
     waiting_clients = iset_init(sizeof(int));
     players = (Player**) iset_init(sizeof(Player*)); // cast to pset
+    printf("size of players is initially %lu\n", iset_capacity(players) * iset_size(players));
 
     int soc = socket(AF_INET, SOCK_STREAM, 0);
     int yes = 1;
@@ -378,7 +379,7 @@ void accept_client(int soc) {
 
 
 void player_init(int fd) {
-    if (fd >= iset_length(players)) {
+    if (fd >= iset_capacity(players)) {
         _iset_change_capacity( (void**) &players, 32);
     }
 
@@ -401,6 +402,7 @@ void player_init(int fd) {
 }
 
 void handle_read(int fd) {
+    printf("size of players is now %lu\n", iset_capacity(players) * iset_size(players));
     Player* pl = players[fd];
     printf("name is: %s\n", pl->user);
     ssize_t bytes_read = read(fd, pl->buffer, MAX_USER_LENGTH);
@@ -548,6 +550,7 @@ void kill_client(int fd) {
 
     printf("got here 1\n");
     if (pl->turn >= 0) { // then fd was in the middle of a game!
+        printf("client %d automatically wins\n", foe);
         auto_win(foe);
     }
 
