@@ -205,7 +205,6 @@ void iset_remove(void** iset_ptr, int val, int ind) { // removes the value from 
             _iset_change_capacity( (void**) iset_ptr, diff);
         }
     }
-
 }
 
 int iset_ordered_remove(int** iset_ptr, int ind, int val) { // only for integer sets!! not player set
@@ -882,5 +881,6 @@ void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. o
         iset_addnew((void**) &waiting_clients, fd1, NULL, -1);
         player_set_stats(fd2);
         iset_addnew((void**) &waiting_clients, fd2, NULL, -1);
+        check_wait();
     }
 }
