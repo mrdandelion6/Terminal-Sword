@@ -25,14 +25,14 @@ Alternatively, to connect from a different machine use this command:
 ```
 stty -icanon; nc <IP_address> 55976
 ```
-where `<IP_address>` is the IP of the server machine. 
+where `<IP_address>` is the IP of the server machine's network. 
 
 ### Port Forwarding
 Port forwarding is mandatory for your server to allow clients outside of the local network to connect. Clients do not port forward, only the network hosting the server does. 
 
-The internet router the server is connected on will need the port 55976 forwarded to `<IP_address>` in order for clients on a different network to join. 
+The internet router the server is connected on will need the port 55976 forwarded to the server machine's IPv4 address in order for clients on a different network to join. 
 
-If you don't know how to do this, you can look for tutorials online or stick to local network gameplay.
+If you don't know how to do this, you can look for port forwarding tutorials online or stick to local network gameplay.
 
 ## Dependencies
 
