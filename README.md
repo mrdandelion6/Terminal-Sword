@@ -10,8 +10,8 @@ To play the game you must run the server on a linux terminal and join from anoth
 To compile and run the server, follow these steps:
 
 1. Clone the repository: `git clone https://github.com/your-username/terminal-sword.git`
-2. Navigate to the project directory: `cd terminal-sword`
-3. On Bash, `make`, or compile directly `gcc -o sword sword.c`
+2. Navigate to the project directory: `cd terminal-sword/src`
+3. On Bash, run `make`, or compile directly with `gcc -o sword sword.c`
 4. Run the server: `./sword`
 
 The server is set to run on port 55976. Ensure this port is not in use by anything else on the server's local network. You can also choose to change this port by changing the PORT macro in `sword.c` and `makefile`. 
