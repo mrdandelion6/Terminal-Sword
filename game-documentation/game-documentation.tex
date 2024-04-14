@@ -1,0 +1,143 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{geometry}
+
+\title{Terminal Sword: Gameplay Documentation}
+\author{mrdandelion6}
+\date{April 2024}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+}
+
+% ===
+\newenvironment{mypar}{%
+    \setlength{\parskip}{1em}
+    \parindent=0pt%
+}{%
+    \par%
+}
+
+\makeatletter
+\renewcommand\section{\@startsection {section}{1}{\z@}%
+                                   {-5ex \@plus -1ex \@minus -.2ex}% above
+                                   {1ex \@plus .2ex}% below
+                                   {\normalfont\Large\bfseries}}
+\makeatother
+
+\newenvironment{cindent}[1]{%
+    \par% Start a new paragraph
+    \setlength{\leftskip}{#1}% Set the left indentation
+    \noindent% No paragraph indentation
+    \ignorespaces% Ignore spaces after \begin{customindent}
+}{%
+    \par% End the paragraph
+}
+
+% ===
+
+\newenvironment{swordinfo}[1]{%
+    \vspace{0.3em}
+    \rule{\linewidth}{0.1pt}% Horizontal rule
+    \vspace{0.5em}
+    \par% Start a new paragraph
+    \textbf{\texttt{#1 :}}%
+    \begin{itemize}[label=-, labelsep=0.5em, font=\ttfamily]%
+}{%
+    \end{itemize}%
+}
+
+\def\marg{3cm}
+\geometry{
+    left=\marg,
+    right=\marg,
+    top=\marg,
+    bottom=\marg,
+}
+
+\begin{document}
+\setlength{\parindent}{0pt}
+
+\maketitle
+
+\begin{mypar}
+\section{Introduction}
+Terminal Sword is a turn-based game, where players choose a sword and fight against other players online. See the \href{https://github.com/mrdandelion6/Terminal-Sword}{repository} on GitHub for installation. 
+\end{mypar}
+
+\section{Matching}
+\begin{mypar}
+When a player joins the server, they will be queued for a match until another player becomes available to fight. When this happens, a match will commence and end when either player wins. A player will win if they successfully drain all of their opponent's HP or if their opponent disconnects from the server.
+
+Once two players have finished a match, they will prefer to initiate a battle with a different player who is waiting, if any. The player who gets to fight the waiting player will be random. If there is no one waiting, the two players will fight again.
+\end{mypar}
+
+\section{Different Moves}
+\begin{mypar}
+When it is a player's turn, they can choose to use a normal attack \verb|(a)|, a power attack \verb|(p)|, or to speak \verb|(s)|. Speaking does not end your turn but attacking does. 
+\end{mypar}
+
+\section{Character Stats}
+\begin{mypar}
+There are 5 different character stats which go into gameplay:
+
+\begin{cindent}{1.3em}
+\verb|HP :| How much damage players can take before losing.
+
+\verb|MP :| How many power attacks plays can use.
+
+\verb|ND :| The damage a normal attack does.
+
+\verb|PD :| The damage a power attack does, when landed.
+
+\verb|LUCK :| The chance of landing a power attack. A decimal ranging from 0 - 1.
+\end{cindent}
+\end{mypar}
+
+\section{Different Swords}
+\begin{mypar}
+The sword a player chooses will determine their character stats and attack cosmetic. There are currently 4 different swords to choose from:
+\end{mypar}
+
+\begin{swordinfo}{fire sword}
+\item \verb|100 HP|
+\item \verb|1 MP|
+\item \verb|20 ND|
+\item \verb|70 PD|
+\item \verb|0.8 LUCK|
+\end{swordinfo}
+
+\begin{swordinfo}{water sword}
+\item \verb|150 HP|
+\item \verb|10 MP|
+\item \verb|15 ND|
+\item \verb|30 PD|
+\item \verb|0.5 LUCK|
+\end{swordinfo}
+
+\begin{swordinfo}{air sword}
+\item \verb|90 HP|
+\item \verb|2 MP|
+\item \verb|20 ND|
+\item \verb|50 PD|
+\item \verb|0.6 LUCK|
+\end{swordinfo}
+
+\begin{swordinfo}{blood sword}
+\item \verb|120 HP|
+\item \textbf{$\infty$} \verb|MP|
+\item \verb|5 ND|
+\item \verb|999 PD|
+\item \verb|0.1 LUCK|
+\end{swordinfo}
+
+\section{Power Attacks}
+\begin{mypar}
+Using a power attack costs 1 MP. Power attacks are not guaranteed to hit. The chance of landing one depends on a character's LUCK stat. When a player misses a power attack, their MP is still drained by 1. When a player attempts to use a power attack at 0 MP, they will be told to use another move and their turn will not end.
+\end{mypar}
+
+\end{document}

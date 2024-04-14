@@ -2,6 +2,7 @@ token.txt
 .gitkeep
 .vscode
 additional/
+extra-tex
 
 battle
 *.o
