@@ -9,6 +9,12 @@
 #include <sys/select.h>
 #include <time.h> // for rand
 
+// global strings
+char* title = 
+" ▄               ▀           █      ▄▄▄               █\n"
+"▀█▀ ███ █▀▀ ███  █  █▀█ ▀▀█  █      ▀▄  █▄█ █▀█ █▀▀ █▀█\n"
+" █▄ █▄▄ █   █ █  █  █ █ ███  █▄     ▄▄█ ███ █▄█ █   █▄█\n";
+
 // 55976, 46050
 #ifndef PORT
     #define PORT 55976  
@@ -38,19 +44,11 @@ void check_win(int fd1, int fd2);
 void title_page(int fd);
 void safe_write(int fd, char* message);
 
-
-// global strings
-char* title = 
-" ▄               ▀           █      ▄▄▄               █\n"
-"▀█▀ ███ █▀▀ ███  █  █▀█ ▀▀█  █      ▀▄  █▄█ █▀█ █▀▀ █▀█\n"
-" █▄ █▄▄ █   █ █  █  █ █ ███  █▄     ▄▄█ ███ █▄█ █   █▄█\n";
-
-
 typedef struct player { 
     char user[32];
     char buffer[MAX_MESSAGE_LENGTH]; 
     char msg[MAX_MESSAGE_LENGTH]; 
-    int state;
+    int state; // -2: title screen. -1: not in game. 0: in game, not turn. 1: in game, turn. 2: speaking.
     int foe; 
     int element; 
     int hp;
@@ -58,7 +56,7 @@ typedef struct player {
     int special_dmg;
     float special_chance;
     int special_count;
-    // -2: title screen. -1: not in game. 0: in game, not turn. 1: in game, turn. 2: speaking.
+    int loop; // 0: not in loop. 1: title page. 2: waiting for match. 3: idle in game.
 } Player; // note that when state >= 0, players are in game.
 
 // IMPORTANT CONSTANTS
