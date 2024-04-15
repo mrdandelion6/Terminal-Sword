@@ -35,21 +35,30 @@ void norm_attack(int fd1, int fd2);
 void power_attack(int fd1, int fd2);
 void taunt(int fd1, int fd2);
 void check_win(int fd1, int fd2);
+void title_page(int fd);
 
-typedef struct player { // 16-bit aligned
-    char user[32]; // 32
-    int element; // 32
-    int foe; // 32
-    char buffer[MAX_MESSAGE_LENGTH]; // 256
-    char msg[MAX_MESSAGE_LENGTH]; // 256
+
+// global strings
+char* title = 
+" ▄               ▀           █      ▄▄▄               █\n"
+"▀█▀ ███ █▀▀ ███  █  █▀█ ▀▀█  █      ▀▄  █▄█ █▀█ █▀▀ █▀█\n"
+" █▄ █▄▄ █   █ █  █  █ █ ███  █▄     ▄▄█ ███ █▄█ █   █▄█\n";
+
+
+typedef struct player { 
+    char user[32];
+    char buffer[MAX_MESSAGE_LENGTH]; 
+    char msg[MAX_MESSAGE_LENGTH]; 
+    int state;
+    int foe; 
+    int element; 
     int hp;
     int normal_dmg;
     int special_dmg;
     float special_chance;
     int special_count;
-    int turn; // players have -1 turn if they arent in game, 0 if they are in game but not their turn, and 1 if they are in game and its their turn.
-    int speaking;
-} Player; 
+    // -2: title screen. -1: not in game. 0: in game, not turn. 1: in game, turn. 2: speaking.
+} Player; // note that when state >= 0, players are in game.
 
 // IMPORTANT CONSTANTS
 char* elements[] = {"fire", "water", "wind", "blood"};
@@ -205,6 +214,7 @@ void iset_remove(void** iset_ptr, int val, int ind) { // removes the value from 
             _iset_change_capacity( (void**) iset_ptr, diff);
         }
     }
+
 }
 
 int iset_ordered_remove(int** iset_ptr, int ind, int val) { // only for integer sets!! not player set
@@ -391,8 +401,7 @@ void player_init(int fd) {
     strcpy(player->user, "\0");
     strcpy(player->msg, "\0");
     player->foe = -1;
-    player->turn = -1;
-    player->speaking = 0;
+    player->state = -2;
 
     iset_addnew((void**) &players, -1, player, fd); // store the pointer to the dynamically allocated memory
 
@@ -418,7 +427,7 @@ void handle_read(int fd) {
         pl->buffer[bytes_read] = '\0';
         strcat(pl->msg, pl->buffer);
 
-        if (pl->turn == 1 && !pl->speaking) { // handle input immediately when its the player's turn
+        if (pl->state == 1) { // handle input immediately when its the player's turn
             printf("yoo!!?!?!\n");
             if ( (strcmp(pl->buffer, "a")) == 0 ) {
                 norm_attack(fd, pl->foe);
@@ -441,7 +450,7 @@ void handle_read(int fd) {
             if (newline_ptr != NULL) { // user sent a message.
                 remove_newlines(pl->msg);
 
-                if (pl->speaking) {
+                if (pl->state == 2) { // state == 2 means they are speaking
                     int foe = pl->foe;
                     int write_check = write_with_size(foe, pl->msg);
                     check_write(fd, write_check);
@@ -548,7 +557,7 @@ void kill_client(int fd) {
     iset_ordered_remove( &waiting_clients, -1, fd);
 
     printf("got here 1\n");
-    if (pl->turn >= 0) { // then fd was in the middle of a game!
+    if (pl->state >= 0) { // then fd was in the middle of a game!
         printf("client %d automatically wins\n", foe);
         auto_win(foe);
     }
@@ -591,7 +600,7 @@ void player_set_stats(int fd) {
     int elem = pl->element;
     printf("whata??\n");
 
-    pl->turn = -1;
+    pl->state = -1;
 
     switch (elem) {
         case 0: // fire
@@ -677,7 +686,7 @@ void initiate_battle(int fd1, int fd2) {
     strcpy(message, "(a)ttack\n(p)ower move\n(s)peak something\r\n");
     write_val = write_with_size(first, message);
     check_write(first, write_val);
-    p1->turn = 1;
+    p1->state = 1;
     
 
     // send to second player
@@ -699,7 +708,7 @@ void initiate_battle(int fd1, int fd2) {
     sprintf(message, "Waiting for %s to strike...\n", p1->user);
     write_val = write_with_size(second, message);
     check_write(second, write_val);
-    p2->turn = 0;
+    p2->state = 0;
     
 }
 
@@ -757,7 +766,7 @@ void norm_attack(int fd1, int fd2) {
 
     p2->hp -= p1->normal_dmg;
 
-    p1->turn =  0;
+    p1->state =  0;
     check_win(fd1, fd2);
 }
 
@@ -819,7 +828,7 @@ void power_attack(int fd1, int fd2) {
     if (p1->special_count != -1) {
         p1->special_count--;
     }
-    p1->turn =  0;
+    p1->state =  0;
     check_win(fd1, fd2);
 }
 void taunt(int fd1, int fd2) {
@@ -831,7 +840,7 @@ void taunt(int fd1, int fd2) {
     write_check = write_with_size(fd1, message);
     check_write(fd1, write_check);
 
-    p1->speaking = 1;
+    p1->state = 2; // set state to speaking
     strcpy(p1->buffer, "");
     strcpy(p1->msg, "");
 }
@@ -855,7 +864,7 @@ void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. o
         write_check = write_with_size(fd2, message);
         check_write(fd2, write_check);
 
-        p2->turn = 1;
+        p2->state = 1;
         attack_prompts(fd2, fd1);
     }
 
@@ -874,8 +883,8 @@ void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. o
         write_check = write_with_size(fd2, message);
         check_write(fd2, write_check);
 
-        p1->turn = -1;
-        p2->turn = -1;
+        p1->state = -1;
+        p2->state = -1;
 
         player_set_stats(fd1);
         iset_addnew((void**) &waiting_clients, fd1, NULL, -1);
@@ -883,4 +892,14 @@ void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. o
         iset_addnew((void**) &waiting_clients, fd2, NULL, -1);
         check_wait();
     }
+}
+
+void title_page(int fd) {
+    int write_check = write_with_size(fd, title);
+    check_write(fd, write_check);
+}
+
+void safe_write(int fd, char* message) {
+    int write_check = write_with_size(fd, message);
+    check_write(fd, write_check);
 }
