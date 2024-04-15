@@ -5,4 +5,6 @@ additional/
 extra-tex
 
 sword
+test.c
+test
 *.o

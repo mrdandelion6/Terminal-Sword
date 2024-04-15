@@ -31,6 +31,7 @@ int write_with_size(int fd, char* s);
 void accept_client(int soc);
 void check_wait();
 void handle_read(int fd);
+void handle_write(int fd);
 void player_init(int fd);
 void remove_newlines(char *str);
 void join_msg(int fd, char* name);
@@ -66,6 +67,7 @@ char* reg_moves[] = {"flame slash", "water cut", "wind slice", "blood stab"};
 char* spec_moves[] = {"Wolf-Rayet star WR 102", "15,750 psi!!", "Let us not burthen our remembrance with / A heaviness thats gone.", "holy grail."};
 
 fd_set readfds;
+fd_set writefds;
 int* clients;
 int* waiting_clients;
 Player** players;
@@ -323,15 +325,16 @@ int main() {
         exit(1);
     }
 
-    // use select() to avoid blocking with accept()
+    // use select to avoid blocking with accept()
     FD_ZERO (&readfds);
+    FD_ZERO (&writefds); // dont set anything for this yet
     FD_SET(soc, &readfds); // add the server socket into read_fds() which will listen for clients to connect
     int max_fd = soc;
 
     while (1) {
         printf("pending select\n");
 
-        if (select(max_fd + 1, &readfds, NULL, NULL, NULL) != 1) {
+        if (select(max_fd + 1, &readfds, &writefds, NULL, NULL) != 1) {
             perror("select");
             exit(1);
         }
@@ -344,6 +347,11 @@ int main() {
         for (int i = 0; i < iset_length(clients); i++) {
             int fd = clients[i];
             // now reset readfds to contain everything
+
+            if (FD_ISSET(fd, &writefds)) {
+                printf("writing to client %d\n", fd);
+                handle_write(fd);
+            }
             
             if (FD_ISSET(fd, &readfds)) {
                 printf("reading from client %d\n", fd);
@@ -353,8 +361,11 @@ int main() {
 
         for (int i = 0; i < iset_length(clients); i++) { // second loop for this
             int fd = clients[i];
-            printf("adding %d\n", fd);
             FD_SET(fd, &readfds); 
+
+            if (players[fd]->loop > 0) { // if the player is in a loop, add them to the write set
+                FD_SET(fd, &writefds);
+            }
         }
 
         if (iset_length(clients) > 0) {
@@ -401,10 +412,10 @@ void player_init(int fd) {
     strcpy(player->msg, "\0");
     player->foe = -1;
     player->state = -2; // initially at title screen
+    player->loop = 1; // start on title screen
 
     iset_addnew((void**) &players, -1, player, fd); // store the pointer to the dynamically allocated memory
-
-    safe_write(fd, "What is your name young one?\r\n");
+    FD_SET(fd, &writefds); // add the client to the write set initially to begin loop
 }
 
 void handle_read(int fd) {
@@ -441,6 +452,12 @@ void handle_read(int fd) {
             }
             strcpy(pl->buffer, "");
             strcpy(pl->msg, "");
+        }
+
+        else if (pl->loop == 1) { // title page
+            safe_write(fd, "What is your name young one?\r\n");
+            pl->loop = 0;
+            FD_CLR(fd, &writefds); // kill loop
         }
 
         else {
@@ -854,3 +871,52 @@ void safe_write(int fd, char* message) {
     int write_check = write_with_size(fd, message);
     check_write(fd, write_check);
 }
+
+void animate_frame(int fd, char* frame, float time) {
+        int micro = time * 1000000;
+        safe_write(fd, "\033[H\033[J"); // clears the screen
+        strcat(frame, "\r\n");
+        safe_write(fd, frame);
+        usleep(micro);
+};
+
+void handle_write(int fd) { // only used for writing for indefinite loops
+    Player* pl = players[fd];
+
+    switch (pl->loop) {
+        case 0:
+            fprintf(stderr, "handle_write: loop is 0\n");
+            exit(1);
+            break;
+        
+        case 1: // title screen
+            char frame1[3000];
+            sprintf(frame1, "%s\n%s\r\n", title,
+            " _  _ _  _ _   _  _  _|_|_ . _  _   _|_ _   |_  _  _ . _ |\n"
+            "|_)| (/__\\_\\  (_|| |\\/| | ||| |(_|   | (_)  |_)(/_(_||| |.\n"
+            "|                   /           _|                 _|     \n");
+
+            char frame2[3000];
+            sprintf(frame2, "%s\n%s\r\n", title,
+            " _  _ _  _ _   _  _  _|_|_ . _  _   _|_ _   |_  _  _ . _ \n"
+            "|_)| (/__\\_\\  (_|| |\\/| | ||| |(_|   | (_)  |_)(/_(_||| |\n"
+            "|                   /           _|                 _|   \n");
+
+            // 0.6 second frames
+            animate_frame(fd, frame1, 0.6);
+            animate_frame(fd, frame2, 0.6);
+
+            break;
+
+        case 2: // waiting for match
+            break;
+
+        case 3: // idle in game
+            break;
+        
+        default:
+            fprintf(stderr, "handle_write: unknown case\n");
+            exit(1);
+            break;
+    }
+} 
