@@ -36,6 +36,7 @@ void power_attack(int fd1, int fd2);
 void taunt(int fd1, int fd2);
 void check_win(int fd1, int fd2);
 void title_page(int fd);
+void safe_write(int fd, char* message);
 
 
 // global strings
@@ -401,19 +402,20 @@ void player_init(int fd) {
     strcpy(player->user, "\0");
     strcpy(player->msg, "\0");
     player->foe = -1;
-    player->state = -2;
+    player->state = -2; // initially at title screen
 
     iset_addnew((void**) &players, -1, player, fd); // store the pointer to the dynamically allocated memory
 
-    int write_check = write_with_size(fd, "What is your name young one?\r\n");
-    check_write(fd, write_check);
+    safe_write(fd, "What is your name young one?\r\n");
 }
 
 void handle_read(int fd) {
+
     printf("size of players is now %lu\n", iset_capacity(players) * iset_size(players));
     Player* pl = players[fd];
     printf("name is: %s\n", pl->user);
     ssize_t bytes_read = read(fd, pl->buffer, MAX_USER_LENGTH);
+
     if (bytes_read == -1) {
         perror("read");
         exit(1); 
@@ -451,18 +453,15 @@ void handle_read(int fd) {
                 remove_newlines(pl->msg);
 
                 if (pl->state == 2) { // state == 2 means they are speaking
-                    int foe = pl->foe;
-                    int write_check = write_with_size(foe, pl->msg);
-                    check_write(fd, write_check);
+                    safe_write(pl->foe, pl->msg);
                 }
 
                 else if (strcmp(pl->user, "\0") == 0) { // user stated their name
                     strcpy(pl->user, pl->msg);
-                    // pl->user[255] = '\0';
+                    pl->user[255] = '\0';
                     join_msg(fd, pl->user);
                     printf("%s joined\n", pl->user); // server side message for testing
-                    int write_check = write_with_size(fd, "Choose your element (affects stats).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
-                    check_write(fd, write_check);
+                    safe_write(fd, "Choose your element (affects stats).\n(1): fire\n(2): water\n(3): air\n(4): blood\r\n");
                 }
 
                 else if (pl->element == -1) { // user stated their element
@@ -470,11 +469,11 @@ void handle_read(int fd) {
                     int elem = atoi(pl->msg);
                     if (1 <= elem && elem <= 4) { // valid elemnt
                         pl->element = elem - 1;
+
                         printf("%s chosen\n", elements[pl->element]); // server side message for testing
-                        int write_check = write_with_size(fd, choose_msg[pl->element]);
-                        check_write(fd, write_check);
-                        write_check = write_with_size(fd, "Waiting for an opponent..\r\n");
-                        check_write(fd, write_check);
+                        safe_write(fd, choose_msg[pl->element]);
+                        safe_write(fd, "Waiting for an opponent..\r\n");
+
                         iset_addnew((void**) &waiting_clients, fd, NULL, -1);
                         player_set_stats(fd);
                         if (iset_length(waiting_clients) >= 2) {
@@ -482,8 +481,7 @@ void handle_read(int fd) {
                         }
                     }
                     else {
-                        int write_check = write_with_size(fd, "Not a valid element number!\r\n");
-                        check_write(fd, write_check);
+                        safe_write(fd, "Not a valid element number!\r\n");
                     }
                 }
                 strcpy(pl->buffer, "\0");
@@ -533,8 +531,7 @@ void check_write(int fd, int return_val) { // function to check the return value
 
 void auto_win(int fd) {
     printf("player ran away\n");
-    int write_check = write_with_size(fd, "Your opponent has forfeit. You win!\r\n");
-    check_write(fd, write_check);
+    safe_write(fd, "Your opponent has forfeit. You win!\r\n");
 
     printf("no issue here 1\n");
     player_set_stats(fd);
@@ -542,8 +539,7 @@ void auto_win(int fd) {
     iset_addnew((void**) &waiting_clients, fd, NULL, -1); // add back to list of waiting clients.
 
     printf("no issue here 3\n");
-    write_check = write_with_size(fd, "Waiting for an opponent..\r\n");
-    check_write(fd, write_check);
+    safe_write(fd, "Waiting for an opponent..\r\n");
     printf("no issue here 4\n");
 }
 
@@ -645,7 +641,6 @@ void initiate_battle(int fd1, int fd2) {
     p2->foe = fd1;
     int first;
     int second;
-    int write_val;
 
     srand(time(NULL));
     int random_number = rand();
@@ -668,48 +663,33 @@ void initiate_battle(int fd1, int fd2) {
     char moves[10];
 
     // send to first player
-    strcpy(message, "You engage ");
-    strcat(message, p2->user);
-    strcat(message, "!\r\n");
-    write_val = write_with_size(first, message);
-    check_write(first, write_val);
+    sprintf(message, "You engage %s!\r\n", p2->user);
+    safe_write(first, message);
 
     special_move(p1->special_count, moves);
     sprintf(message, "You have %d hp.\nYou have %s MP. \r\n", p1->hp, moves);
-    write_val = write_with_size(first, message);
-    check_write(first, write_val);
+    safe_write(first, message);
 
     sprintf(message, "\n%s's hp: %d \r\n\n", p2->user, p2->hp);
-    write_val = write_with_size(first, message);
-    check_write(first, write_val);
+    safe_write(first, message);
 
-    strcpy(message, "(a)ttack\n(p)ower move\n(s)peak something\r\n");
-    write_val = write_with_size(first, message);
-    check_write(first, write_val);
-    p1->state = 1;
+    safe_write(first, "(a)ttack\n(p)ower move\n(s)peak something\r\n");
+    p1->state = 1; // set state to turn
     
-
     // send to second player
-    strcpy(message, "You engage ");
-    strcat(message, p1->user);
-    strcat(message, "!\r\n");
-    write_val = write_with_size(second, message);
-    check_write(second, write_val);
+    sprintf(message, "You engage %s!\r\n", p1->user);
+    safe_write(second, message);
 
     special_move(p2->special_count, moves);
     sprintf(message, "You have %d hp.\nYou have %s MP.\r\n", p2->hp, moves);
-    write_val = write_with_size(second, message);
-    check_write(second, write_val);
+    safe_write(second, message);
 
     sprintf(message, "\n%s's hp: %d \r\n", p1->user, p1->hp);
-    write_val = write_with_size(second, message);
-    check_write(second, write_val);
+    safe_write(second, message);
 
     sprintf(message, "Waiting for %s to strike...\n", p1->user);
-    write_val = write_with_size(second, message);
-    check_write(second, write_val);
+    safe_write(second, message);
     p2->state = 0;
-    
 }
 
 void attack_prompts(int fd1, int fd2) { // send the attack prompts, given that fd1's turn
@@ -717,15 +697,12 @@ void attack_prompts(int fd1, int fd2) { // send the attack prompts, given that f
     Player* p1 = players[fd1];
 
     char message[MAX_MESSAGE_LENGTH];
-    int write_val;
 
     strcpy(message, "(a)ttack\n(p)ower move\n(s)peak something\r\n");
-    write_val = write_with_size(fd1, message);
-    check_write(fd1, write_val);
+    safe_write(fd1, message);
 
     sprintf(message, "Waiting for %s to strike...\n", p1->user);
-    write_val = write_with_size(fd2, message);
-    check_write(fd2, write_val);
+    safe_write(fd2, message);
 }
 
 void special_move(int val, char* moves) {
@@ -745,24 +722,20 @@ void norm_attack(int fd1, int fd2) {
 
     // write messages
     char message[MAX_MESSAGE_LENGTH];
-    int write_check;
 
     // write to fd1
     sprintf(message, "\nYou: '%s'\r\n", reg_moves[p1->element]);
-    write_check = write_with_size(fd1, message);
-    check_write(fd1, write_check);
+    safe_write(fd1, message);
+
     sprintf(message, "\nYou hit %s for %d damage!\r\n\n", p2->user, p1->normal_dmg);
-    write_check = write_with_size(fd1, message);
-    check_write(fd1, write_check);
+    safe_write(fd1, message);
     
 
     // write to fd2
     sprintf(message, "%s: '%s'", p1->user, reg_moves[p1->element]);
-    write_check = write_with_size(fd2, message);
-    check_write(fd2, write_check);
+    safe_write(fd2, message);
     sprintf(message, "\n\n%s hits you for %d damage!\r\r\n", p1->user, p1->normal_dmg);
-    write_check = write_with_size(fd2, message);
-    check_write(fd2, write_check);
+    safe_write(fd2, message);
 
     p2->hp -= p1->normal_dmg;
 
@@ -782,12 +755,9 @@ void power_attack(int fd1, int fd2) {
     
     // write messages
     char message[MAX_MESSAGE_LENGTH];
-    int write_check;
 
     if (p1->special_count == 0) {
-        sprintf(message, "You have no power moves left!\r\n");
-        write_check = write_with_size(fd1, message);
-        check_write(fd1, write_check);
+        safe_write(fd1, "You have no power moves left!\r\n");
         return;
     }
 
@@ -795,34 +765,27 @@ void power_attack(int fd1, int fd2) {
 
     // write to fd1
     sprintf(message, "\nYou: '%s'\r\n", spec_moves[p1->element]);
-    write_check = write_with_size(fd1, message);
-    check_write(fd1, write_check);
+    safe_write(fd1, message);
 
     // write to fd2
     sprintf(message, "%s: '%s'", p1->user, spec_moves[p1->element]);
-    write_check = write_with_size(fd2, message);
-    check_write(fd2, write_check);
+    safe_write(fd2, message);
     
     if (attack_hit) {
         sprintf(message, "\nYou hit %s for %d damage!\r\n\n", p2->user, p1->special_dmg);
-        write_check = write_with_size(fd1, message);
-        check_write(fd1, write_check);
+        safe_write(fd1, message);
 
         sprintf(message, "\n\n%s hits you for %d damage!\r\r\n", p1->user, p1->special_dmg);
-        write_check = write_with_size(fd2, message);
-        check_write(fd2, write_check);
+        safe_write(fd2, message);
 
         p2->hp -= p1->special_dmg;
     }
     
     else {
-        sprintf(message, "\nYou missed..\r\n\n");
-        write_check = write_with_size(fd1, message);
-        check_write(fd1, write_check);
+        safe_write(fd1, "\nYou missed..\r\n\n");
 
         sprintf(message, "\n\n%s missed..\r\r\n", p1->user);
-        write_check = write_with_size(fd2, message);
-        check_write(fd2, write_check);
+        safe_write(fd2, message);
     }
 
     if (p1->special_count != -1) {
@@ -833,20 +796,15 @@ void power_attack(int fd1, int fd2) {
 }
 void taunt(int fd1, int fd2) {
     Player* p1 = players[fd1];
-    char message[MAX_MESSAGE_LENGTH];
-    int write_check;
 
-    sprintf(message, "\nSpeak:");
-    write_check = write_with_size(fd1, message);
-    check_write(fd1, write_check);
-
+    safe_write(fd1, "\nSpeak: \r");
     p1->state = 2; // set state to speaking
     strcpy(p1->buffer, "");
     strcpy(p1->msg, "");
 }
+
 void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. one-way check, not bidirectional!
     char message[MAX_MESSAGE_LENGTH];
-    int write_check;
     Player* p1 = players[fd1];
     Player* p2 = players[fd2];
 
@@ -856,13 +814,11 @@ void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. o
 
         special_move(p1->special_count, s_move);
         sprintf(message, "Your HP: %d\nYour MP: %s\n\n%s's HP: %d\r\n", p1->hp, s_move, p2->user, p2->hp);
-        write_check = write_with_size(fd1, message);
-        check_write(fd1, write_check);
+        safe_write(fd1, message);
 
         special_move(p2->special_count, s_move);
         sprintf(message, "Your HP: %d\nYour MP: %s\n\n%s's HP: %d\r\n", p2->hp, s_move, p1->user, p1->hp);
-        write_check = write_with_size(fd2, message);
-        check_write(fd2, write_check);
+        safe_write(fd2, message);
 
         p2->state = 1;
         attack_prompts(fd2, fd1);
@@ -870,18 +826,11 @@ void check_win(int fd1, int fd2) { // return 1 if fd1 beat fd2, else return 0. o
 
     else { // won
         sprintf(message, "You defeated %s!\r\n\n", p2->user);
-        write_check = write_with_size(fd1, message);
-        check_write(fd1, write_check);
-        sprintf(message, "Waiting for new match...\n");
-        write_check = write_with_size(fd1, message);
-        check_write(fd1, write_check);
+        safe_write(fd1, message);
+        safe_write(fd1, "Waiting for new match...\r\n");
 
-        sprintf(message, "You lost.\r\n\n");
-        write_check = write_with_size(fd2, message);
-        check_write(fd2, write_check);
-        sprintf(message, "Waiting for new match...\n");
-        write_check = write_with_size(fd2, message);
-        check_write(fd2, write_check);
+        safe_write(fd2, "You lost.\r\n\n");
+        safe_write(fd2, "Waiting for new match...\r\n");
 
         p1->state = -1;
         p2->state = -1;
