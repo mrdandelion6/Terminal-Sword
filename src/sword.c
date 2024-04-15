@@ -430,7 +430,6 @@ void handle_read(int fd) {
         strcat(pl->msg, pl->buffer);
 
         if (pl->state == 1) { // handle input immediately when its the player's turn
-            printf("yoo!!?!?!\n");
             if ( (strcmp(pl->buffer, "a")) == 0 ) {
                 norm_attack(fd, pl->foe);
             }
@@ -450,11 +449,16 @@ void handle_read(int fd) {
             char* newline_ptr = strchr(pl->buffer, '\n');
 
             if (newline_ptr != NULL) { // user sent a message.
+
                 remove_newlines(pl->msg);
 
                 if (pl->state == 2) { // state == 2 means they are speaking
+                    // add back new lines in this case.
+                    strcat(pl->msg, "\r\n");
                     safe_write(pl->foe, pl->msg);
+                    pl->state = 1; // set state back to turn
                 }
+
 
                 else if (strcmp(pl->user, "\0") == 0) { // user stated their name
                     strcpy(pl->user, pl->msg);
@@ -797,7 +801,7 @@ void power_attack(int fd1, int fd2) {
 void taunt(int fd1, int fd2) {
     Player* p1 = players[fd1];
 
-    safe_write(fd1, "\nSpeak: \r");
+    safe_write(fd1, "\nSpeak: ");
     p1->state = 2; // set state to speaking
     strcpy(p1->buffer, "");
     strcpy(p1->msg, "");
