@@ -2,6 +2,9 @@
 
 Terminal Sword is a low level C project hosting an online multiplayer terminal-based sword game using stream sockets with the TCP protocol.
 
+## AO Warning
+Part of this code was submitted by me for a computer science course at UofT and you will most definitely be flagged for an academic offense if you use it for any assignments.
+
 ## Installation
 
 To play the game you must run the server on a linux terminal and join from another linux terminal. 
