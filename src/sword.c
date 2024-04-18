@@ -44,6 +44,7 @@ void taunt(int fd1, int fd2);
 void check_win(int fd1, int fd2);
 void title_page(int fd);
 void safe_write(int fd, char* message);
+void kill_loop(int fd);
 
 typedef struct player { 
     char user[32];
@@ -346,16 +347,15 @@ int main() {
 
         for (int i = 0; i < iset_length(clients); i++) {
             int fd = clients[i];
-            // now reset readfds to contain everything
+
+            if (FD_ISSET(fd, &readfds)) { // read before write
+                printf("reading from client %d\n", fd);
+                handle_read(fd);
+            }
 
             if (FD_ISSET(fd, &writefds)) {
                 printf("writing to client %d\n", fd);
                 handle_write(fd);
-            }
-            
-            if (FD_ISSET(fd, &readfds)) {
-                printf("reading from client %d\n", fd);
-                handle_read(fd);
             }
         }
 
@@ -419,7 +419,7 @@ void player_init(int fd) {
 }
 
 void handle_read(int fd) {
-
+    kill_loop(fd); // begin by just killing a loop first if it exists
     printf("size of players is now %lu\n", iset_capacity(players) * iset_size(players));
     Player* pl = players[fd];
     printf("name is: %s\n", pl->user);
@@ -456,8 +456,6 @@ void handle_read(int fd) {
 
         else if (pl->loop == 1) { // title page
             safe_write(fd, "What is your name young one?\r\n");
-            pl->loop = 0;
-            FD_CLR(fd, &writefds); // kill loop
         }
 
         else {
@@ -920,3 +918,9 @@ void handle_write(int fd) { // only used for writing for indefinite loops
             break;
     }
 } 
+
+void kill_loop(int fd) {
+    Player* pl = players[fd];
+    pl->loop = 0;
+    FD_CLR(fd, &writefds);
+}
