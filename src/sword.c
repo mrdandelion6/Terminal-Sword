@@ -919,7 +919,7 @@ void handle_write(int fd) { // only used for writing for indefinite loops
     }
 } 
 
-void kill_loop(int fd) {
+void kill_loop(int fd) { // kill a loop if it exists and set the player to idle so another loop wont start
     Player* pl = players[fd];
     pl->loop = 0;
     FD_CLR(fd, &writefds);
