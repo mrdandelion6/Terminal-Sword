@@ -327,8 +327,8 @@ int main() {
     }
 
     // use select to avoid blocking with accept()
-    FD_ZERO (&readfds);
-    FD_ZERO (&writefds); // dont set anything for this yet
+    FD_ZERO(&readfds);
+    FD_ZERO(&writefds); // dont set anything for this yet
     FD_SET(soc, &readfds); // add the server socket into read_fds() which will listen for clients to connect
     int max_fd = soc;
 
