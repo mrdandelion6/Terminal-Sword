@@ -423,7 +423,9 @@ void handle_read(int fd) {
     printf("size of players is now %lu\n", iset_capacity(players) * iset_size(players));
     Player* pl = players[fd];
     printf("name is: %s\n", pl->user);
-    ssize_t bytes_read = read(fd, pl->buffer, MAX_USER_LENGTH);
+
+    // read() call
+    ssize_t bytes_read = read(fd, pl->buffer, MAX_MESSAGE_LENGTH - 1);
 
     if (bytes_read == -1) {
         perror("read");
@@ -435,8 +437,8 @@ void handle_read(int fd) {
     }
 
     else { // process the buffer data
-        pl->buffer[bytes_read] = '\0';
-        strcat(pl->msg, pl->buffer);
+        pl->buffer[bytes_read < MAX_MESSAGE_LENGTH ? bytes_read : MAX_MESSAGE_LENGTH - 1] = '\0'; 
+        strcat(pl->msg, pl->buffer); // TODO: handle buffer overflow
 
         if (pl->state == 1) { // handle input immediately when its the player's turn
             if ( (strcmp(pl->buffer, "a")) == 0 ) {
