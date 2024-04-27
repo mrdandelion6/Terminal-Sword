@@ -353,7 +353,7 @@ int main() {
                 handle_read(fd);
             }
 
-            if (FD_ISSET(fd, &writefds)) {
+            if (FD_ISSET(fd, &writefds)) { // TODO: figure out whether we are reading or writing first when in an animation loop
                 printf("writing to client %d\n", fd);
                 handle_write(fd);
             }
