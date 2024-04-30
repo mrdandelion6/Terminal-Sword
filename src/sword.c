@@ -353,6 +353,7 @@ int main() {
                 handle_read(fd);
             }
 
+            // TODO: fix bug where game server exits after receiving any client input while in an animation loop
             if (FD_ISSET(fd, &writefds)) { // TODO: figure out whether we are reading or writing first when in an animation loop
                 printf("writing to client %d\n", fd);
                 handle_write(fd);
