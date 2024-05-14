@@ -45,4 +45,4 @@ This project requires the following dependencies:
 
 ## Gameplay
 
-For gameplay documentation, see `game-documentation.pdf` in `documentation`.
+For gameplay documentation, see [`game-documentation.pdf`](documentation/game-documentation.pdf) in `documentation`.
