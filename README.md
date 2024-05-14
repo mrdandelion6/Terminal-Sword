@@ -34,7 +34,7 @@ Port forwarding is mandatory for your server to allow clients outside of the loc
 
 The internet router the server is connected on will need the port 55976 forwarded to the server machine's IPv4 address in order for clients on a different network to join. 
 
-If you don't know how to do this, you can look for port forwarding tutorials online or stick to local network gameplay.
+If you don't know how to port forward, you can look for port forwarding tutorials online or stick to local network gameplay.
 
 ## Dependencies
 
