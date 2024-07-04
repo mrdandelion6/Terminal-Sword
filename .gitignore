@@ -3,6 +3,8 @@ token.txt
 .vscode
 additional/
 extra-tex
+game-documentation.tex
+tex_info
 
 sword
 test.c
